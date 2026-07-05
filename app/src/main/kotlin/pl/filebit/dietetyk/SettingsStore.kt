@@ -29,7 +29,12 @@ class SettingsStore(context: Context) {
         get() = prefs.getString("user_name", "").orEmpty()
         set(v) { prefs.edit().putString("user_name", v).apply() }
 
-    /** Waga docelowa w kg (0 = nieustawiona). */
+    /** Czy przeniesiono cel/posiłki/preferencje z prefs do Room (jednorazowy backfill). */
+    var prefsMigratedToProfile: Boolean
+        get() = prefs.getBoolean("prefs_migrated_profile", false)
+        set(v) { prefs.edit().putBoolean("prefs_migrated_profile", v).apply() }
+
+    /** Waga docelowa w kg (0 = nieustawiona). LEGACY — źródło dla backfillu, potem profil. */
     var goalWeightKg: Double
         get() = prefs.getFloat("goal_weight", 0f).toDouble()
         set(v) { prefs.edit().putFloat("goal_weight", v.toFloat()).apply() }

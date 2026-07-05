@@ -20,5 +20,11 @@ data class NutritionProfile(
     val daysPerWeek: Int = 0,
     val goal: DietGoalType = DietGoalType.MAINTAIN,
     /** Docelowe tempo zmiany masy (kg/tydz, wartość dodatnia — kierunek wynika z [goal]). */
-    val paceKgPerWeek: Double = 0.5
+    val paceKgPerWeek: Double = 0.5,
+    /** Waga docelowa w kg (null = nieustawiona). */
+    val goalWeightKg: Double? = null,
+    /** Preferowana liczba posiłków dziennie (2–8; null = domyślne). */
+    val mealsPerDay: Int? = null,
+    /** Alergie/nietolerancje/preferencje (krótki tekst zebrany przez AI). */
+    val dietaryPrefs: String? = null
 )

@@ -46,17 +46,26 @@ fun ProfileScreen(app: DietetykApp) {
     var loaded by remember { mutableStateOf(false) }
     var currentW by remember { mutableStateOf<Double?>(null) }
     var startW by remember { mutableStateOf<Double?>(null) }
-    var meals by remember { androidx.compose.runtime.mutableIntStateOf(app.settings.mealsPerDay) }
+    var meals by remember { androidx.compose.runtime.mutableIntStateOf(4) }
     LaunchedEffect(Unit) {
-        profile = app.profileRepo.get()
+        val prof = app.profileRepo.get()
+        profile = prof
+        meals = prof?.mealsPerDay ?: 4
         val samples = app.weightRepo.since(0)
-        currentW = samples.maxByOrNull { it.dateMs }?.weightKg ?: profile?.weightKg
-        startW = samples.minByOrNull { it.dateMs }?.weightKg ?: profile?.weightKg
+        currentW = samples.maxByOrNull { it.dateMs }?.weightKg ?: prof?.weightKg
+        startW = samples.minByOrNull { it.dateMs }?.weightKg ?: prof?.weightKg
         loaded = true
     }
 
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    // Zapis pojedynczego pola profilu do Room (cel/posiłki) + odświeżenie lokalnego stanu.
+    fun saveProfilePatch(patch: (NutritionProfile) -> NutritionProfile) {
+        val cur = profile ?: return
+        val np = patch(cur)
+        profile = np
+        scope.launch { app.profileRepo.save(np, System.currentTimeMillis()) }
+    }
     var notifOn by remember { mutableStateOf(app.settings.notificationsEnabled) }
     var updateStatus by remember { mutableStateOf("") }
     var showKeyDialog by remember { mutableStateOf(false) }
@@ -104,9 +113,8 @@ fun ProfileScreen(app: DietetykApp) {
         }
 
         // Karta celu: start → teraz → cel + pasek postępu (tap = edycja celu)
-        var goalWState by remember { androidx.compose.runtime.mutableStateOf(app.settings.goalWeightKg) }
         var showGoalDialog by remember { mutableStateOf(false) }
-        val goalW = goalWState.takeIf { it > 0 }
+        val goalW = p.goalWeightKg?.takeIf { it > 0 }
         val cur = currentW ?: p.weightKg
         val start = startW ?: p.weightKg
         val frac = if (goalW != null && cur != null && start != null && kotlin.math.abs(goalW - start) > 0.1)
@@ -145,7 +153,7 @@ fun ProfileScreen(app: DietetykApp) {
                 },
                 confirmButton = {
                     androidx.compose.material3.TextButton(onClick = {
-                        goalText.replace(',', '.').toDoubleOrNull()?.let { app.settings.goalWeightKg = it; goalWState = it }
+                        goalText.replace(',', '.').toDoubleOrNull()?.let { x -> saveProfilePatch { it.copy(goalWeightKg = x) } }
                         showGoalDialog = false
                     }) { Text("Zapisz") }
                 },
@@ -161,7 +169,7 @@ fun ProfileScreen(app: DietetykApp) {
         InfoRow("Treningi/tydzień", "${p.daysPerWeek}")
         InfoRow("Cel", goalLabel(p.goal))
         InfoRow("Tempo", "${p.paceKgPerWeek} kg/tydz")
-        InfoRow("Preferencje", app.settings.dietaryPrefs.ifBlank { "—" })
+        InfoRow("Preferencje", (p.dietaryPrefs ?: "").ifBlank { "—" })
 
         // Stepper liczby posiłków
         Row(
@@ -170,9 +178,9 @@ fun ProfileScreen(app: DietetykApp) {
         ) {
             Text("🍽️ Liczba posiłków", color = Palette.TextDark, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(32.dp).background(Palette.GreenTint, androidx.compose.foundation.shape.CircleShape).clickable { if (meals > 2) { meals--; app.settings.mealsPerDay = meals } }, contentAlignment = Alignment.Center) { Text("−", color = Palette.GreenDark, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+                Box(Modifier.size(32.dp).background(Palette.GreenTint, androidx.compose.foundation.shape.CircleShape).clickable { if (meals > 2) { meals--; saveProfilePatch { it.copy(mealsPerDay = meals) } } }, contentAlignment = Alignment.Center) { Text("−", color = Palette.GreenDark, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
                 Text("$meals", color = Palette.TextDark, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(horizontal = 14.dp))
-                Box(Modifier.size(32.dp).background(Palette.GreenTint, androidx.compose.foundation.shape.CircleShape).clickable { if (meals < 8) { meals++; app.settings.mealsPerDay = meals } }, contentAlignment = Alignment.Center) { Text("+", color = Palette.GreenDark, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+                Box(Modifier.size(32.dp).background(Palette.GreenTint, androidx.compose.foundation.shape.CircleShape).clickable { if (meals < 8) { meals++; saveProfilePatch { it.copy(mealsPerDay = meals) } } }, contentAlignment = Alignment.Center) { Text("+", color = Palette.GreenDark, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
             }
         }
 

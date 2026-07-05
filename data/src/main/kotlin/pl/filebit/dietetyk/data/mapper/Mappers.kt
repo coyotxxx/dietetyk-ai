@@ -12,12 +12,14 @@ import pl.filebit.dietetyk.data.db.WeightEntity
 
 fun ProfileEntity.toModel(): NutritionProfile = NutritionProfile(
     gender = gender, ageYears = ageYears, heightCm = heightCm, weightKg = weightKg,
-    activityLevel = activityLevel, daysPerWeek = daysPerWeek, goal = goal, paceKgPerWeek = paceKgPerWeek
+    activityLevel = activityLevel, daysPerWeek = daysPerWeek, goal = goal, paceKgPerWeek = paceKgPerWeek,
+    goalWeightKg = goalWeightKg, mealsPerDay = mealsPerDay, dietaryPrefs = dietaryPrefs
 )
 
 fun NutritionProfile.toEntity(updatedAt: Long, dirty: Boolean = true): ProfileEntity = ProfileEntity(
     id = 0, gender = gender, ageYears = ageYears, heightCm = heightCm, weightKg = weightKg,
     activityLevel = activityLevel, daysPerWeek = daysPerWeek, goal = goal, paceKgPerWeek = paceKgPerWeek,
+    goalWeightKg = goalWeightKg, mealsPerDay = mealsPerDay, dietaryPrefs = dietaryPrefs,
     updatedAt = updatedAt, dirty = dirty
 )
 

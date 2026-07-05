@@ -157,6 +157,11 @@ fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier) {
     var input by remember { mutableStateOf("") }
     var photoUri by remember { mutableStateOf<android.net.Uri?>(null) }
 
+    // Automatyczne wysłanie wiadomości ustawionej z innego ekranu (np. „Zacznij wizytę").
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        app.pendingChatMessage?.let { msg -> app.pendingChatMessage = null; vm.send(msg, apiKey) }
+    }
+
     val cameraLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.TakePicture()
     ) { success ->

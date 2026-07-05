@@ -23,6 +23,9 @@ data class ProfileEntity(
     val daysPerWeek: Int,
     val goal: DietGoalType,
     val paceKgPerWeek: Double,
+    val goalWeightKg: Double? = null,
+    val mealsPerDay: Int? = null,
+    val dietaryPrefs: String? = null,
     val updatedAt: Long = 0,
     val dirty: Boolean = false
 )

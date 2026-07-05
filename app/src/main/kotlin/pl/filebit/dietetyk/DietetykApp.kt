@@ -50,6 +50,9 @@ class DietetykApp : Application() {
         return json
     }
 
+    /** Wiadomość do automatycznego wysłania w czacie po przejściu tam (np. „Zacznij wizytę"). */
+    var pendingChatMessage: String? = null
+
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
@@ -60,12 +63,29 @@ class DietetykApp : Application() {
             val dao = database.foodProductDao()
             if (dao.count() == 0) dao.insertAll(FoodProductSeed.all)
         }
+        // Backfill: przenieś cel/posiłki/preferencje z prefs do profilu (żeby łapała je kopia .db).
+        appScope.launch { backfillPrefsToProfile() }
         // Cotygodniowa wizyta kontrolna (KEEP — nie resetuj harmonogramu przy każdym starcie).
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(
             "weekly_checkin",
             ExistingPeriodicWorkPolicy.KEEP,
             PeriodicWorkRequestBuilder<CheckInWorker>(7, TimeUnit.DAYS).build()
         )
+    }
+
+    /** Jednorazowe przeniesienie cel/posiłki/preferencje z SharedPreferences do profilu w Room. */
+    private suspend fun backfillPrefsToProfile() {
+        if (settings.prefsMigratedToProfile) return
+        val prof = profileRepo.get() ?: return   // brak profilu → spróbuj przy kolejnym starcie
+        val g = settings.goalWeightKg.takeIf { it > 0 }
+        val d = settings.dietaryPrefs.takeIf { it.isNotBlank() }
+        val merged = prof.copy(
+            goalWeightKg = prof.goalWeightKg ?: g,
+            mealsPerDay = prof.mealsPerDay ?: settings.mealsPerDay,
+            dietaryPrefs = prof.dietaryPrefs ?: d
+        )
+        if (merged != prof) profileRepo.save(merged, System.currentTimeMillis())
+        settings.prefsMigratedToProfile = true
     }
 
     /** Ręczne wyzwolenie wizyty (przycisk „Sprawdź teraz" / test). */

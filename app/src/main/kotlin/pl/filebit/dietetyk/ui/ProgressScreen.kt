@@ -77,7 +77,7 @@ fun ProgressScreen(app: DietetykApp, onGoToChat: () -> Unit = {}) {
 
         val allSorted = samples.sortedBy { it.dateMs }
         val latest = allSorted.lastOrNull()?.weightKg
-        val goalW = app.settings.goalWeightKg.takeIf { it > 0 }
+        val goalW = profile?.goalWeightKg?.takeIf { it > 0 }
         val now = System.currentTimeMillis()
         val ranged = allSorted.filter { it.dateMs >= now - range.toLong() * 24 * 3600 * 1000 }
         // delta liczona w oknie (spójna z wykresem)
@@ -106,7 +106,7 @@ fun ProgressScreen(app: DietetykApp, onGoToChat: () -> Unit = {}) {
             ?: profile?.let { p -> pl.filebit.dietetyk.core.calc.BodyFatEstimator.estimate(latest, p.heightCm, p.ageYears, p.gender, waistCm = waistVal)?.percent }
         val adherence = run {
             val today = java.time.LocalDate.now()
-            val meals = app.settings.mealsPerDay
+            val meals = profile?.mealsPerDay ?: 4
             var eaten = 0; var activeDays = 0
             for (i in 0 until 14) {
                 val d = today.minusDays(i.toLong())
@@ -156,15 +156,18 @@ fun ProgressScreen(app: DietetykApp, onGoToChat: () -> Unit = {}) {
         // Karta najbliższej wizyty kontrolnej (ciemna)
         val white = androidx.compose.ui.graphics.Color.White
         val nextVisitMs = (visits.firstOrNull()?.dateMs ?: now) + 7L * 24 * 3600 * 1000
-        Column(Modifier.fillMaxWidth().padding(top = 20.dp).background(Palette.GreenDark, RoundedCornerShape(18.dp)).padding(18.dp)) {
-            Text("NAJBLIŻSZA WIZYTA KONTROLNA", color = white.copy(alpha = 0.7f), fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
+        Column(Modifier.fillMaxWidth().padding(top = 20.dp).background(androidx.compose.ui.graphics.Color(0xFF23261F), RoundedCornerShape(18.dp)).padding(18.dp)) {
+            Text("NAJBLIŻSZA WIZYTA KONTROLNA", color = white.copy(alpha = 0.6f), fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
             Text(
                 if (nextVisitMs <= now) "Termin już minął — czas na wizytę" else "za ${((nextVisitMs - now) / (24 * 3600 * 1000)).toInt() + 1} dni · ${dayLabel(nextVisitMs)}",
                 color = white, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp)
             )
             Box(
                 Modifier.padding(top = 12.dp).background(Palette.Green, RoundedCornerShape(12.dp))
-                    .clickable { runCatching { app.triggerCheckInNow() }; onGoToChat() }.padding(horizontal = 18.dp, vertical = 10.dp),
+                    .clickable {
+                        app.pendingChatMessage = "Przeprowadź teraz wizytę kontrolną: podsumuj miniony tydzień (raport tygodnia) i — jeśli trzeba — zaproponuj korektę planu. Pokaż to jako karty."
+                        onGoToChat()
+                    }.padding(horizontal = 18.dp, vertical = 10.dp),
                 contentAlignment = Alignment.Center
             ) { Text("Zacznij wizytę", color = white, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
         }

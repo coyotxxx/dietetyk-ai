@@ -93,10 +93,8 @@ class DietToolHandler(
 
     private suspend fun saveProfile(input: JsonObject, now: Long): ToolResult {
         val p = input["profile"]?.jsonObject ?: input   // wspiera płaskie pola i zagnieżdżone
+        val existing = app.profileRepo.get()   // zachowaj wcześniej ustawione pola, gdy AI ich nie poda
         p.string("name")?.let { app.settings.userName = it }
-        p.double("goalWeightKg")?.let { app.settings.goalWeightKg = it }
-        p.int("mealsPerDay")?.let { app.settings.mealsPerDay = it }
-        p.string("preferences")?.let { app.settings.dietaryPrefs = it }
         val profile = NutritionProfile(
             gender = enumOr(p.string("gender"), Gender.MALE),
             ageYears = p.int("ageYears") ?: p.int("wiek") ?: 30,
@@ -105,7 +103,10 @@ class DietToolHandler(
             activityLevel = enumOr(p.string("activityLevel"), ActivityLevel.MODERATE),
             daysPerWeek = p.int("daysPerWeek") ?: 0,
             goal = enumOr(p.string("goal"), DietGoalType.MAINTAIN),
-            paceKgPerWeek = p.double("paceKgPerWeek") ?: 0.5
+            paceKgPerWeek = p.double("paceKgPerWeek") ?: 0.5,
+            goalWeightKg = p.double("goalWeightKg") ?: existing?.goalWeightKg,
+            mealsPerDay = p.int("mealsPerDay") ?: existing?.mealsPerDay,
+            dietaryPrefs = p.string("preferences") ?: existing?.dietaryPrefs
         )
         app.profileRepo.save(profile, now)
         return ToolResult("Zapisałem profil.")
