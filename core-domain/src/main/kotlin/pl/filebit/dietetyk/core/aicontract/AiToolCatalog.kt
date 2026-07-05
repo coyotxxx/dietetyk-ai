@@ -86,8 +86,12 @@ object AiToolCatalog {
             readsData = true, emitsNumbers = true
         ),
         AiToolSpec(
-            "add_missing_product", "Dodaj brakujący produkt (auto z OpenFoodFacts) do bazy lokalnej.",
-            listOf(AiToolParam("product", "object", true, "nazwa + makro per 100g surowego")), mutating = true
+            "add_missing_product", "Pobierz brakujący produkt z OpenFoodFacts (po nazwie lub kodzie kreskowym) i dodaj do bazy lokalnej. Zwraca makro na 100g.",
+            listOf(
+                AiToolParam("query", "string", false, "nazwa produktu do wyszukania"),
+                AiToolParam("barcode", "string", false, "kod kreskowy (dokładniejszy niż nazwa)")
+            ),
+            mutating = true, emitsNumbers = true
         ),
         AiToolSpec(
             "generate_shopping_list", "Zbuduj listę zakupów z aktualnego planu tygodnia (produkty surowe, pogrupowane).",

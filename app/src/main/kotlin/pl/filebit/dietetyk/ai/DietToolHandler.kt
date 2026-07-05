@@ -6,6 +6,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import pl.filebit.dietetyk.DietetykApp
+import pl.filebit.dietetyk.data.db.FoodProductEntity
 import pl.filebit.dietetyk.data.db.FoodProductSeed
 import pl.filebit.dietetyk.data.db.PlanEntity
 import pl.filebit.dietetyk.core.adapt.CheckInEngine
@@ -43,6 +44,7 @@ class DietToolHandler(
             "run_checkin" -> runCheckin(now)
             "save_diet_plan" -> saveDietPlan(input, now)
             "search_products" -> searchProducts(input)
+            "add_missing_product" -> addMissingProduct(input)
             else -> ToolResult("Narzędzie '$name' będzie dostępne wkrótce.")
         }
     }
@@ -105,6 +107,26 @@ class DietToolHandler(
             "• ${p.name} (na 100g surowego): ${p.kcal} kcal, B ${p.proteinG}g, W ${p.carbsG}g, T ${p.fatG}g"
         }
         return ToolResult("Produkty w bazie (surowe, na 100g):\n$lines")
+    }
+
+    private suspend fun addMissingProduct(input: JsonObject): ToolResult {
+        val query = input.string("query")
+        val barcode = input.string("barcode")
+        if (query.isNullOrBlank() && barcode.isNullOrBlank()) {
+            return ToolResult("Podaj nazwę (query) lub kod kreskowy (barcode).", isError = true)
+        }
+        val off = app.offClient.lookup(query, barcode)
+            ?: return ToolResult("Nie znalazłem w OpenFoodFacts. Oszacuj wartości ostrożnie lub dopytaj użytkownika.")
+        app.database.foodProductDao().insertAll(
+            listOf(
+                FoodProductEntity(
+                    name = off.name, nameNorm = FoodProductSeed.normalize(off.name),
+                    kcal = off.kcal, proteinG = off.proteinG, carbsG = off.carbsG, fatG = off.fatG,
+                    category = "OpenFoodFacts", source = "off"
+                )
+            )
+        )
+        return ToolResult("Dodałem do bazy: ${off.name} (na 100g): ${off.kcal} kcal, B ${off.proteinG}g, W ${off.carbsG}g, T ${off.fatG}g.")
     }
 
     private suspend fun saveDietPlan(input: JsonObject, now: Long): ToolResult {
