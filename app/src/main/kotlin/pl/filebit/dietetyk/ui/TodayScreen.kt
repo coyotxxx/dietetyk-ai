@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -47,7 +48,7 @@ import kotlin.math.min
 private data class DayMeal(val name: String, val time: String, val kcal: Int)
 
 @Composable
-fun TodayScreen(app: DietetykApp) {
+fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}) {
     var goal by remember { mutableStateOf<DailyMacroGoal?>(null) }
     var consumed by remember { mutableIntStateOf(0) }
     var hasProfile by remember { mutableStateOf(true) }
@@ -77,9 +78,23 @@ fun TodayScreen(app: DietetykApp) {
         }
     }
 
+    val unread by app.database.notificationDao().unreadCount().collectAsState(initial = 0)
+
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
-        Text("Cześć! 👋", color = Palette.TextDark, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
-        Text(polishDate(), color = Palette.Muted, fontSize = 14.sp, modifier = Modifier.padding(top = 2.dp, bottom = 16.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+            Column {
+                Text("Cześć! 👋", color = Palette.TextDark, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
+                Text(polishDate(), color = Palette.Muted, fontSize = 14.sp, modifier = Modifier.padding(top = 2.dp, bottom = 16.dp))
+            }
+            Box(Modifier.clickable { onBell() }.padding(4.dp), contentAlignment = Alignment.TopEnd) {
+                Text("🔔", fontSize = 24.sp)
+                if (unread > 0) {
+                    Box(Modifier.size(18.dp).background(Palette.Orange, androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) {
+                        Text("$unread", color = androidx.compose.ui.graphics.Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
 
         val g = goal
         if (g == null) {

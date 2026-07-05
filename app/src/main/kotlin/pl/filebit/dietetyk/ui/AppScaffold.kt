@@ -47,13 +47,16 @@ private enum class Tab(val label: String, val icon: ImageVector) {
 @Composable
 fun AppScaffold(app: DietetykApp) {
     var tab by remember { mutableStateOf(Tab.DIETETYK) }
+    var showNotifs by remember { mutableStateOf(false) }
     Scaffold(
         containerColor = Palette.Bg,
-        bottomBar = { BottomBar(tab) { tab = it } }
+        bottomBar = { if (!showNotifs) BottomBar(tab) { tab = it } }
     ) { inner ->
         Box(Modifier.padding(inner).fillMaxSize().background(Palette.Bg)) {
-            when (tab) {
-                Tab.DZIS -> TodayScreen(app)
+            if (showNotifs) {
+                NotificationsScreen(app) { showNotifs = false }
+            } else when (tab) {
+                Tab.DZIS -> TodayScreen(app, onBell = { showNotifs = true })
                 Tab.PLAN -> PlanScreen(app)
                 Tab.DIETETYK -> ChatScreen(app, Modifier.fillMaxSize())
                 Tab.POSTEPY -> ProgressScreen(app)

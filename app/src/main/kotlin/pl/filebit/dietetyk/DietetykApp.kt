@@ -1,13 +1,20 @@
 package pl.filebit.dietetyk
 
 import android.app.Application
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
 import pl.filebit.dietetyk.ai.ClaudeHttpApi
 import pl.filebit.dietetyk.ai.OpenFoodFactsClient
 import pl.filebit.dietetyk.ai.RecipeGenerator
+import pl.filebit.dietetyk.notify.CheckInWorker
+import pl.filebit.dietetyk.notify.Notifications
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import java.util.concurrent.TimeUnit
 import pl.filebit.dietetyk.data.context.DietitianContextBuilder
 import pl.filebit.dietetyk.data.db.AppDatabase
 import pl.filebit.dietetyk.data.db.FoodProductSeed
@@ -44,10 +51,22 @@ class DietetykApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        Notifications.ensureChannel(this)
         // Zaseeduj bazę produktów przy pierwszym uruchomieniu (idempotentne).
         appScope.launch {
             val dao = database.foodProductDao()
             if (dao.count() == 0) dao.insertAll(FoodProductSeed.all)
         }
+        // Cotygodniowa wizyta kontrolna (KEEP — nie resetuj harmonogramu przy każdym starcie).
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "weekly_checkin",
+            ExistingPeriodicWorkPolicy.KEEP,
+            PeriodicWorkRequestBuilder<CheckInWorker>(7, TimeUnit.DAYS).build()
+        )
+    }
+
+    /** Ręczne wyzwolenie wizyty (przycisk „Sprawdź teraz" / test). */
+    fun triggerCheckInNow() {
+        WorkManager.getInstance(this).enqueue(OneTimeWorkRequestBuilder<CheckInWorker>().build())
     }
 }
