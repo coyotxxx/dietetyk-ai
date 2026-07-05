@@ -1,8 +1,10 @@
 package pl.filebit.dietetyk.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -58,6 +60,14 @@ fun ProgressScreen(app: DietetykApp) {
             }
         }
 
+        if (samples.size >= 2) {
+            WeightChart(
+                samples.sortedBy { it.dateMs },
+                Modifier.fillMaxWidth().padding(top = 12.dp).height(160.dp)
+                    .background(Palette.Card, RoundedCornerShape(18.dp)).padding(16.dp)
+            )
+        }
+
         Text("Historia pomiarów", color = Palette.TextDark, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 20.dp, bottom = 8.dp))
         if (loaded && samples.isEmpty()) {
             Text("Brak pomiarów. Powiedz Dietetykowi ile ważysz, a zapisze pomiar.", color = Palette.Muted, fontSize = 14.sp)
@@ -77,4 +87,27 @@ fun ProgressScreen(app: DietetykApp) {
 private fun dayLabel(ms: Long): String {
     val d = java.time.Instant.ofEpochMilli(ms).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
     return "${d.dayOfMonth}.${d.monthValue}.${d.year}"
+}
+
+/** Prosty wykres liniowy wagi (posortowane rosnąco po dacie). */
+@Composable
+private fun WeightChart(sorted: List<WeightSample>, modifier: Modifier) {
+    val minW = sorted.minOf { it.weightKg }
+    val maxW = sorted.maxOf { it.weightKg }
+    val range = (maxW - minW).takeIf { it > 0.01 } ?: 1.0
+    Canvas(modifier) {
+        val n = sorted.size
+        val dx = if (n > 1) size.width / (n - 1) else 0f
+        fun yFor(w: Double) = (size.height * (1f - ((w - minW) / range).toFloat())).toFloat()
+        val path = androidx.compose.ui.graphics.Path()
+        sorted.forEachIndexed { i, s ->
+            val x = i * dx
+            val y = yFor(s.weightKg)
+            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        }
+        drawPath(path, Palette.Green, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 6f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+        sorted.forEachIndexed { i, s ->
+            drawCircle(Palette.Green, radius = 7f, center = androidx.compose.ui.geometry.Offset(i * dx, yFor(s.weightKg)))
+        }
+    }
 }
