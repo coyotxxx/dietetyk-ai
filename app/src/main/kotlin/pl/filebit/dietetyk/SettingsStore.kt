@@ -24,5 +24,10 @@ class SettingsStore(context: Context) {
         get() = prefs.getBoolean("onboarding_done", false)
         set(v) { prefs.edit().putBoolean("onboarding_done", v).apply() }
 
+    /** Imię użytkownika (do spersonalizowanego powitania). */
+    var userName: String
+        get() = prefs.getString("user_name", "").orEmpty()
+        set(v) { prefs.edit().putString("user_name", v).apply() }
+
     private companion object { const val KEY_API = "claude_api_key" }
 }

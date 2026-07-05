@@ -55,11 +55,15 @@ import kotlin.math.min
 private data class DayMeal(val name: String, val time: String, val kcal: Int)
 
 @Composable
-fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}) {
+fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Unit = {}) {
     var goal by remember { mutableStateOf<DailyMacroGoal?>(null) }
     var consumed by remember { mutableIntStateOf(0) }
+    var consumedP by remember { mutableIntStateOf(0) }
+    var consumedC by remember { mutableIntStateOf(0) }
+    var consumedF by remember { mutableIntStateOf(0) }
     var hasProfile by remember { mutableStateOf(true) }
     var meals by remember { mutableStateOf<List<DayMeal>>(emptyList()) }
+    val userName = remember { app.settings.userName }
     val dayKey = remember { LocalDate.now().let { "%04d%02d%02d".format(it.year, it.monthValue, it.dayOfMonth) } }
     var water by remember { mutableIntStateOf(app.settings.waterMl(dayKey)) }
     val waterTarget = 2500
@@ -70,7 +74,11 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}) {
         val w = app.weightRepo.latest()?.weightKg
         goal = p?.let { GoalPipeline.compute(it, latestMeasuredWeightKg = w) }
         val since = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        consumed = app.database.energyLogDao().since(since).sumOf { it.kcalConsumed }
+        val logs = app.database.energyLogDao().since(since)
+        consumed = logs.sumOf { it.kcalConsumed }
+        consumedP = logs.sumOf { it.proteinG }
+        consumedC = logs.sumOf { it.carbsG }
+        consumedF = logs.sumOf { it.fatG }
         app.database.planDao().get()?.let { plan ->
             meals = runCatching {
                 Json.parseToJsonElement(plan.planJson).jsonObject["meals"]!!.jsonArray.map { e ->
@@ -95,7 +103,7 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
             Column {
-                Text("Cześć! 👋", color = Palette.TextDark, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
+                Text("Cześć${if (userName.isNotBlank()) ", $userName" else ""}! 👋", color = Palette.TextDark, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
                 Text(polishDate(), color = Palette.Muted, fontSize = 14.sp, modifier = Modifier.padding(top = 2.dp, bottom = 16.dp))
             }
             Box(Modifier.clickable { onBell() }.padding(4.dp), contentAlignment = Alignment.TopEnd) {
@@ -133,11 +141,11 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}) {
         } else {
             Card {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    KcalRing(consumed = consumed, target = g.kcal, modifier = Modifier.size(120.dp))
+                    KcalRing(consumed = consumed, target = g.kcal, modifier = Modifier.size(128.dp))
                     Column(Modifier.padding(start = 16.dp)) {
-                        MacroLine("Białko", g.proteinG, Palette.Green)
-                        MacroLine("Węgle", g.carbsG, Palette.Orange)
-                        MacroLine("Tłuszcz", g.fatG, Palette.Blue)
+                        MacroRing("Białko", consumedP, g.proteinG, Palette.Green)
+                        MacroRing("Węgle", consumedC, g.carbsG, Palette.Orange)
+                        MacroRing("Tłuszcz", consumedF, g.fatG, Palette.Blue)
                     }
                 }
                 val left = (g.kcal - consumed).coerceAtLeast(0)
@@ -156,6 +164,10 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}) {
                         g.breakdown.deficitLabel + " Loguj posiłki, a dopasuję cel do Twojego realnego metabolizmu.",
                         color = Palette.TextDark, fontSize = 15.sp, modifier = Modifier.padding(top = 6.dp)
                     )
+                    Box(
+                        Modifier.padding(top = 12.dp).background(Palette.Green, RoundedCornerShape(12.dp))
+                            .clickable { onGoToChat() }.padding(horizontal = 18.dp, vertical = 9.dp)
+                    ) { Text("Odpowiedz", color = androidx.compose.ui.graphics.Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
                 }
             }
         }
@@ -177,12 +189,15 @@ private fun WaterCard(water: Int, target: Int, onChange: (Int) -> Unit) {
     Column(Modifier.fillMaxWidth().padding(top = 12.dp).background(Palette.Card, RoundedCornerShape(18.dp)).padding(16.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("💧 Woda", color = Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            Text("$water / $target ml", color = Palette.Blue, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text("${litersLabel(water)} / ${litersLabel(target)} l", color = Palette.Blue, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         }
-        // pasek postępu
-        Box(Modifier.fillMaxWidth().padding(top = 10.dp).height(8.dp).background(Palette.Line, RoundedCornerShape(4.dp))) {
-            val frac = if (target > 0) min(1f, water.toFloat() / target) else 0f
-            Box(Modifier.fillMaxWidth(frac).height(8.dp).background(Palette.Blue, RoundedCornerShape(4.dp)))
+        // kropki (1 kropka = 250 ml) — jak w Claude Design
+        val dots = (target + 249) / 250
+        val filled = water / 250
+        Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            repeat(dots) { i ->
+                Box(Modifier.size(14.dp).background(if (i < filled) Palette.Blue else Palette.Line, androidx.compose.foundation.shape.CircleShape))
+            }
         }
         Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             WaterBtn("+250 ml", Modifier.weight(1f)) { onChange(250) }
@@ -223,11 +238,23 @@ private fun Card(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun MacroLine(name: String, grams: Int, color: Color) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
-        Box(Modifier.size(10.dp).background(color, RoundedCornerShape(3.dp)))
-        Text("  $name  ", color = Palette.Muted, fontSize = 13.sp)
-        Text("${grams}g", color = Palette.TextDark, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+private fun MacroRing(name: String, consumed: Int, target: Int, color: Color) {
+    val frac = if (target > 0) min(1f, consumed.toFloat() / target) else 0f
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 5.dp)) {
+        Box(Modifier.size(26.dp), contentAlignment = Alignment.Center) {
+            Canvas(Modifier.fillMaxSize()) {
+                val stroke = 5f
+                val d = size.minDimension - stroke
+                val tl = androidx.compose.ui.geometry.Offset((size.width - d) / 2, (size.height - d) / 2)
+                drawArc(Palette.Line, -90f, 360f, false, tl, Size(d, d), style = Stroke(stroke, cap = StrokeCap.Round))
+                drawArc(color, -90f, 360f * frac, false, tl, Size(d, d), style = Stroke(stroke, cap = StrokeCap.Round))
+            }
+        }
+        Column(Modifier.padding(start = 8.dp)) {
+            Text(name, color = Palette.Muted, fontSize = 11.sp)
+            Text("$consumed", color = Palette.TextDark, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        }
+        Text("/${target}g", color = Palette.Muted, fontSize = 11.sp, modifier = Modifier.padding(start = 3.dp, top = 6.dp))
     }
 }
 
@@ -248,6 +275,8 @@ private fun KcalRing(consumed: Int, target: Int, modifier: Modifier) {
         }
     }
 }
+
+private fun litersLabel(ml: Int): String = "%.1f".format(ml / 1000.0).replace('.', ',')
 
 private fun polishDate(): String {
     val d = LocalDate.now()

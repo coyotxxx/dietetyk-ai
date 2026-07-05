@@ -73,7 +73,14 @@ class DietToolHandler(
 
     private suspend fun logMeal(input: JsonObject, now: Long): ToolResult {
         val kcal = input.int("kcal") ?: return ToolResult("Podaj kcal posiłku.", isError = true)
-        app.database.energyLogDao().insert(EnergyLogEntity(dateMs = now, kcalConsumed = kcal, isComplete = false))
+        app.database.energyLogDao().insert(
+            EnergyLogEntity(
+                dateMs = now, kcalConsumed = kcal, isComplete = false,
+                proteinG = input.int("proteinG") ?: 0,
+                carbsG = input.int("carbsG") ?: 0,
+                fatG = input.int("fatG") ?: 0
+            )
+        )
         val name = input.string("name")?.let { " ($it)" } ?: ""
         return ToolResult("Zapisałem posiłek$name: $kcal kcal.")
     }
@@ -86,6 +93,7 @@ class DietToolHandler(
 
     private suspend fun saveProfile(input: JsonObject, now: Long): ToolResult {
         val p = input["profile"]?.jsonObject ?: input   // wspiera płaskie pola i zagnieżdżone
+        p.string("name")?.let { app.settings.userName = it }
         val profile = NutritionProfile(
             gender = enumOr(p.string("gender"), Gender.MALE),
             ageYears = p.int("ageYears") ?: p.int("wiek") ?: 30,

@@ -35,6 +35,7 @@ object AiToolCatalog {
         AiToolSpec(
             "save_profile", "Zapisz/zaktualizuj profil po zebraniu danych w wywiadzie. Podaj tyle pól, ile znasz.",
             listOf(
+                AiToolParam("name", "string", false, "imię użytkownika (do spersonalizowanego powitania)"),
                 AiToolParam("gender", "enum", true, "płeć: MALE lub FEMALE"),
                 AiToolParam("ageYears", "int", true, "wiek w latach"),
                 AiToolParam("heightCm", "int", true, "wzrost w cm"),
@@ -59,10 +60,13 @@ object AiToolCatalog {
             mutating = true, emitsNumbers = true
         ),
         AiToolSpec(
-            "log_meal", "Zapisz zjedzony posiłek. Podaj szacowane kcal (policz je sam z produktów przez search_products jeśli trzeba).",
+            "log_meal", "Zapisz zjedzony posiłek. Podaj kcal oraz makro (policz je z produktów przez search_products jeśli trzeba).",
             listOf(
                 AiToolParam("kcal", "int", true, "kalorie posiłku"),
-                AiToolParam("name", "string", false, "krótki opis posiłku")
+                AiToolParam("name", "string", false, "krótki opis posiłku"),
+                AiToolParam("proteinG", "int", false, "białko w gramach"),
+                AiToolParam("carbsG", "int", false, "węglowodany w gramach"),
+                AiToolParam("fatG", "int", false, "tłuszcz w gramach")
             ),
             mutating = true, emitsNumbers = true
         ),

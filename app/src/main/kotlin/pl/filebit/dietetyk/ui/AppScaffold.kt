@@ -17,7 +17,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.RestaurantMenu
 import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.Spa
-import androidx.compose.material.icons.filled.Today
+import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -37,7 +37,7 @@ import pl.filebit.dietetyk.ChatScreen
 import pl.filebit.dietetyk.DietetykApp
 
 private enum class Tab(val label: String, val icon: ImageVector) {
-    DZIS("Dziś", Icons.Filled.Today),
+    DZIS("Dziś", Icons.Filled.WbSunny),
     PLAN("Plan", Icons.Filled.RestaurantMenu),
     DIETETYK("Dietetyk", Icons.Filled.Spa),
     POSTEPY("Postępy", Icons.Filled.ShowChart),
@@ -61,7 +61,7 @@ fun AppScaffold(app: DietetykApp) {
             if (showNotifs) {
                 NotificationsScreen(app) { showNotifs = false }
             } else when (tab) {
-                Tab.DZIS -> TodayScreen(app, onBell = { showNotifs = true })
+                Tab.DZIS -> TodayScreen(app, onBell = { showNotifs = true }, onGoToChat = { tab = Tab.DIETETYK })
                 Tab.PLAN -> PlanScreen(app)
                 Tab.DIETETYK -> ChatScreen(app, Modifier.fillMaxSize())
                 Tab.POSTEPY -> ProgressScreen(app)

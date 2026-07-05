@@ -13,6 +13,9 @@ data class EnergyLogEntity(
     val dateMs: Long,
     val kcalConsumed: Int,
     val isComplete: Boolean,
+    val proteinG: Int = 0,
+    val carbsG: Int = 0,
+    val fatG: Int = 0,
     val updatedAt: Long = 0,
     val dirty: Boolean = false
 )
