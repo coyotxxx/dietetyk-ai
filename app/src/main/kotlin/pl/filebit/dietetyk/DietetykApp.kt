@@ -56,6 +56,9 @@ class DietetykApp : Application() {
     /** Zdjęcie (base64 JPEG) do wysłania w czacie po przejściu tam (FAB „Sfotografuj posiłek"). */
     var pendingChatPhoto: String? = null
 
+    /** Sygnał: wyczyść rozmowę w pamięci ViewModelu (bazę i prefs czyści ekran Profilu). */
+    var pendingChatClear: Boolean = false
+
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {

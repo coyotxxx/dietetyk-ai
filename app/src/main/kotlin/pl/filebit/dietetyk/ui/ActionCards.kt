@@ -57,7 +57,7 @@ fun ActionCard(card: CardData, onAction: (String) -> Unit) {
 
 @Composable
 private fun CardShell(badge: String?, title: String?, subtitle: String?, content: @Composable () -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(top = 4.dp, start = 32.dp).background(Palette.Card, RoundedCornerShape(20.dp)).padding(16.dp)) {
+    Column(Modifier.fillMaxWidth().padding(top = 4.dp, start = 32.dp).card(20.dp).background(Palette.Card, RoundedCornerShape(20.dp)).padding(16.dp)) {
         if (badge != null) Text(badge, color = Palette.Green, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
         if (title != null) Text(title, color = Palette.TextDark, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = if (badge != null) 4.dp else 0.dp))
         if (subtitle != null) Text(subtitle, color = Palette.Muted, fontSize = 12.sp)

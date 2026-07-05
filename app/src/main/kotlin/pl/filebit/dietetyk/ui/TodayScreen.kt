@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,7 +55,25 @@ import java.time.LocalDate
 import java.time.ZoneId
 import kotlin.math.min
 
-private data class DayMeal(val name: String, val time: String, val kcal: Int, val p: Int, val c: Int, val f: Int)
+private data class DayMeal(val name: String, val time: String, val kcal: Int, val p: Int, val c: Int, val f: Int, val emoji: String = "🍽️")
+
+/** Zgadnij emoji dania z nazwy (fallback gdy plan nie niesie emoji). */
+internal fun mealEmoji(name: String): String {
+    val n = name.lowercase()
+    return when {
+        listOf("owsian", "płatki", "musli", "jogurt", "kanapk", "śniad", "twaróg", "twarog").any { n.contains(it) } -> "🥣"
+        listOf("kurczak", "indyk", "wołow", "wolow", "kotlet", "stek", "schab", "mięso", "mieso").any { n.contains(it) } -> "🍗"
+        listOf("sałat", "salat", "warzyw", "surówk", "surowk", "brokuł", "brokul").any { n.contains(it) } -> "🥗"
+        listOf("ryba", "łoso", "loso", "tuńczyk", "tunczyk", "dorsz", "krewet").any { n.contains(it) } -> "🐟"
+        listOf("ryż", "ryz", "makaron", "kasza", "ziemniak", "quinoa").any { n.contains(it) } -> "🍚"
+        listOf("zupa", "krem", "rosół", "rosol").any { n.contains(it) } -> "🍲"
+        listOf("jaj", "omlet", "jajecz").any { n.contains(it) } -> "🍳"
+        listOf("owoc", "banan", "jabłk", "jablk", "malin", "truskaw", "borów").any { n.contains(it) } -> "🍎"
+        listOf("koktajl", "smoothie", "shake", "napój", "napoj").any { n.contains(it) } -> "🥤"
+        listOf("kanapka", "pieczyw", "chleb", "bułk", "bulk", "tost").any { n.contains(it) } -> "🥪"
+        else -> "🍽️"
+    }
+}
 
 @Composable
 fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Unit = {}) {
@@ -93,7 +112,8 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
                         o["kcal"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
                         o["proteinG"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
                         o["carbsG"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
-                        o["fatG"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+                        o["fatG"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
+                        o["emoji"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() } ?: mealEmoji(o["name"]?.jsonPrimitive?.content ?: "")
                     )
                 }
             }.getOrDefault(emptyList())
@@ -285,7 +305,7 @@ private fun AddMealSheet(onDismiss: () -> Unit, onPhoto: () -> Unit) {
 
 @Composable
 private fun WaterCard(water: Int, target: Int, onChange: (Int) -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(top = 12.dp).background(Palette.Card, RoundedCornerShape(18.dp)).padding(16.dp)) {
+    Column(Modifier.fillMaxWidth().padding(top = 12.dp).card(18.dp).background(Palette.Card, RoundedCornerShape(18.dp)).padding(16.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("💧 Woda", color = Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             Text("${litersLabel(water)} / ${litersLabel(target)} l", color = Palette.Blue, fontSize = 14.sp, fontWeight = FontWeight.Bold)
@@ -319,10 +339,14 @@ private fun MealRow(index: Int, meal: DayMeal, status: String, onEat: () -> Unit
     var menu by remember { mutableStateOf(false) }
     val skipped = status == "SKIPPED"
     Row(
-        Modifier.fillMaxWidth().padding(bottom = 8.dp).background(Palette.Card, RoundedCornerShape(14.dp)).padding(14.dp),
+        Modifier.fillMaxWidth().padding(bottom = 8.dp).card(14.dp).background(Palette.Card, RoundedCornerShape(14.dp)).padding(14.dp),
         horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(Modifier.weight(1f).padding(end = 8.dp)) {
+        Box(
+            Modifier.size(44.dp).alpha(if (skipped) 0.5f else 1f).background(Palette.GreenTint, RoundedCornerShape(12.dp)),
+            contentAlignment = Alignment.Center
+        ) { Text(meal.emoji, fontSize = 22.sp) }
+        Column(Modifier.weight(1f).padding(start = 10.dp, end = 8.dp)) {
             Text("Posiłek ${index + 1}" + (if (meal.time.isNotBlank()) " · ${meal.time}" else ""), color = Palette.Muted, fontSize = 11.sp)
             Text(
                 meal.name, color = if (skipped) Palette.Muted else Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.Bold,

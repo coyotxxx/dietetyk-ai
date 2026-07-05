@@ -129,6 +129,12 @@ internal class ChatViewModel(private val app: DietetykApp) : ViewModel() {
         }
     }
 
+    /** Reset rozmowy w pamięci (bazę/prefs czyści wywołujący). Reseeduje powitanie. */
+    fun resetInMemory() {
+        messages.clear(); history.clear()
+        messages.add(UiMsg(false, "Cześć! Jestem Twoim dietetykiem. Opowiedz mi o sobie — co chciałbyś osiągnąć?"))
+    }
+
     fun sendPhoto(b64: String?, apiKey: String) {
         if (sending) return
         val userMsg = UiMsg(true, "📷 Zdjęcie posiłku"); messages.add(userMsg); sending = true
@@ -157,8 +163,9 @@ fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier) {
     var input by remember { mutableStateOf("") }
     var photoUri by remember { mutableStateOf<android.net.Uri?>(null) }
 
-    // Automatyczne wysłanie wiadomości/zdjęcia ustawionego z innego ekranu (wizyta, FAB aparatu).
+    // Automatyczne wysłanie wiadomości/zdjęcia + reset po „Wyczyść rozmowę" (z Profilu).
     androidx.compose.runtime.LaunchedEffect(Unit) {
+        if (app.pendingChatClear) { app.pendingChatClear = false; vm.resetInMemory() }
         app.pendingChatMessage?.let { msg -> app.pendingChatMessage = null; vm.send(msg, apiKey) }
         app.pendingChatPhoto?.let { b64 -> app.pendingChatPhoto = null; vm.sendPhoto(b64, apiKey) }
     }

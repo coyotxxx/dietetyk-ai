@@ -218,6 +218,24 @@ fun ProfileScreen(app: DietetykApp) {
             Backup.exportShareIntent(ctx, app)?.let { ctx.startActivity(Intent.createChooser(it, "Kopia zapasowa")) }
         }
 
+        var showClearChat by remember { mutableStateOf(false) }
+        SettingRow("🗑️ Wyczyść rozmowę", "Wyczyść ›") { showClearChat = true }
+        if (showClearChat) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { showClearChat = false },
+                title = { Text("Wyczyścić rozmowę?") },
+                text = { Text("Cała historia czatu z dietetykiem zostanie usunięta. Profil, plan i pomiary zostają.") },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(onClick = {
+                        scope.launch { app.database.chatMessageDao().clear(); app.settings.chatHistoryJson = "[]" }
+                        app.pendingChatClear = true
+                        showClearChat = false
+                    }) { Text("Wyczyść") }
+                },
+                dismissButton = { androidx.compose.material3.TextButton(onClick = { showClearChat = false }) { Text("Anuluj") } }
+            )
+        }
+
         Text(
             "🛡️ Dietetyk AI nie zastępuje lekarza ani konsultacji medycznej.",
             color = Palette.Muted, fontSize = 12.sp,

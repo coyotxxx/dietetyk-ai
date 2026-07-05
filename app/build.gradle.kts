@@ -16,8 +16,8 @@ android {
         applicationId = "pl.filebit.dietetyk"
         minSdk = 29
         targetSdk = 35
-        versionCode = 35
-        versionName = "0.1.33"
+        versionCode = 36
+        versionName = "0.1.34"
 
         // Klucz Claude z local.properties (poza gitem) → BuildConfig. Pusty w czystym buildzie.
         val props = Properties().apply {

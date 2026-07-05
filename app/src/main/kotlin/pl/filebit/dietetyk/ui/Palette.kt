@@ -4,7 +4,13 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 
 /** Kolory aplikacji — zestaw dla trybu jasnego i ciemnego (z Claude Design). */
 data class AppColors(
@@ -17,7 +23,8 @@ data class AppColors(
     val Blue: Color,
     val TextDark: Color,
     val Muted: Color,
-    val Line: Color
+    val Line: Color,
+    val isDark: Boolean = false
 )
 
 val LightColors = AppColors(
@@ -43,10 +50,21 @@ val DarkColors = AppColors(
     Blue = Color(0xFF6BA3D4),
     TextDark = Color(0xFFEDEDE6),
     Muted = Color(0xFF8B958C),
-    Line = Color(0xFF32403A)
+    Line = Color(0xFF32403A),
+    isDark = true
 )
 
 val LocalAppColors = staticCompositionLocalOf { LightColors }
+
+/** Wygląd karty: delikatny cień w trybie jasnym, obwódka w ciemnym (cienie tam niewidoczne). */
+@Composable
+fun Modifier.card(radius: Dp = 18.dp): Modifier {
+    val c = LocalAppColors.current
+    return if (c.isDark)
+        this.border(1.dp, c.Line, RoundedCornerShape(radius))
+    else
+        this.shadow(5.dp, RoundedCornerShape(radius), spotColor = Color(0x33232620), ambientColor = Color(0x22232620))
+}
 
 /** Bieżąca paleta (jasna/ciemna). Używaj w @Composable jak dotąd: `Palette.Green`. */
 val Palette: AppColors
