@@ -227,6 +227,24 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
             app.settings.setWaterMl(dayKey, water)
         }
 
+        if (meals.isEmpty() && hasProfile) {
+            Column(
+                Modifier.fillMaxWidth().padding(top = 20.dp).card(18.dp).background(Palette.Card, RoundedCornerShape(18.dp)).padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("🌱", fontSize = 40.sp)
+                Text("Zacznij od rozmowy", color = Palette.TextDark, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
+                Text(
+                    "Nie masz jeszcze planu na dziś. Napisz do dietetyka — ułoży plan i policzy kalorie.",
+                    color = Palette.Muted, fontSize = 13.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(top = 4.dp)
+                )
+                Box(
+                    Modifier.padding(top = 14.dp).background(Palette.Green, RoundedCornerShape(12.dp)).clickable { onGoToChat() }.padding(horizontal = 20.dp, vertical = 11.dp)
+                ) { Text("Napisz do dietetyka", color = androidx.compose.ui.graphics.Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
+            }
+        }
+
         if (meals.isNotEmpty()) {
             val doneCount = meals.count { app.settings.mealStatus(dayKey, it.name).first == "EATEN" }
             Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {

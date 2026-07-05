@@ -198,6 +198,19 @@ fun ProfileScreen(app: DietetykApp) {
             }
         }
 
+        var aiTone by remember { mutableStateOf(app.settings.aiTone) }
+        Text("Ton rozmowy dietetyka", color = Palette.Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("gentle" to "Łagodny", "balanced" to "Wyważony", "tough" to "Wymagający").forEach { (mode, label) ->
+                val active = aiTone == mode
+                Box(
+                    Modifier.weight(1f).background(if (active) Palette.Green else Palette.Card, RoundedCornerShape(12.dp))
+                        .clickable { aiTone = mode; app.settings.aiTone = mode }.padding(vertical = 11.dp),
+                    contentAlignment = Alignment.Center
+                ) { Text(label, color = if (active) androidx.compose.ui.graphics.Color.White else Palette.TextDark, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+            }
+        }
+
         SettingRow("🔔 Powiadomienia (wizyty)", if (notifOn) "Włączone" else "Wyłączone") {
             notifOn = !notifOn; app.settings.notificationsEnabled = notifOn
         }

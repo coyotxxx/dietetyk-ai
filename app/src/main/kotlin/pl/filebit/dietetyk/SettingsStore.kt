@@ -54,6 +54,11 @@ class SettingsStore(context: Context) {
         get() = prefs.getString("chat_history", "[]").orEmpty()
         set(v) { prefs.edit().putString("chat_history", v).apply() }
 
+    /** Ton rozmowy dietetyka: "gentle" | "balanced" | "tough". */
+    var aiTone: String
+        get() = prefs.getString("ai_tone", "balanced").orEmpty()
+        set(v) { prefs.edit().putString("ai_tone", v).apply() }
+
     /** Motyw: "system" | "light" | "dark". */
     var themeMode: String
         get() = prefs.getString("theme_mode", "system").orEmpty()

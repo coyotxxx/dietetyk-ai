@@ -219,7 +219,12 @@ private suspend fun sendToDietitian(
     val ctx = app.contextBuilder.build(System.currentTimeMillis())
     val contextText = ctx?.let { DietitianPrompt.renderContext(it) }
         ?: DietitianPrompt.renderCareGuidance(CareState(CareStage.INTERVIEW, InterviewTopic.entries.toList()))
-    val system = DietitianPrompt.systemPrompt() + "\n\n" + contextText
+    val toneLine = when (app.settings.aiTone) {
+        "gentle" -> "TON ROZMOWY: Bądź wyjątkowo ciepły, wspierający i wyrozumiały. Chwal nawet małe kroki, nigdy nie oceniaj ani nie strasz."
+        "tough" -> "TON ROZMOWY: Bądź bezpośredni i wymagający — mów wprost, motywuj do dyscypliny i konsekwencji, bez owijania w bawełnę (ale z szacunkiem)."
+        else -> "TON ROZMOWY: Bądź wyważony — konkretny i rzeczowy, ale ciepły i motywujący."
+    }
+    val system = DietitianPrompt.systemPrompt() + "\n\n" + toneLine + "\n\n" + contextText
     return DietitianConversation(ClaudeHttpApi(apiKey)).send(system, history, userText, handler, imageB64 = imageB64)
 }
 
