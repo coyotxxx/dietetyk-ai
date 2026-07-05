@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -62,7 +64,7 @@ fun ChatScreen(app: DietetykApp) {
     var input by remember { mutableStateOf("") }
     var sending by remember { mutableStateOf(false) }
 
-    Column(Modifier.fillMaxSize().background(Bg).padding(12.dp)) {
+    Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().imePadding().padding(12.dp)) {
         Text("Dietetyk AI", color = TextDark, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
         LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(messages) { msg -> Bubble(msg) }
@@ -123,7 +125,7 @@ private fun Bubble(msg: UiMsg) {
 @Composable
 private fun ApiKeyGate(onSaved: (String) -> Unit) {
     var key by remember { mutableStateOf("") }
-    Column(Modifier.fillMaxSize().background(Bg).padding(24.dp), verticalArrangement = Arrangement.Center) {
+    Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().imePadding().padding(24.dp), verticalArrangement = Arrangement.Center) {
         Text("Podaj klucz Claude API", color = TextDark, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Text("Klucz zostaje na Twoim telefonie.", color = Color(0xFF7A857D), fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 12.dp))
         OutlinedTextField(value = key, onValueChange = { key = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("sk-ant-…") })
