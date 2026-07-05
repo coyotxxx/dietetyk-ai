@@ -2,14 +2,17 @@ package pl.filebit.dietetyk.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -49,6 +52,9 @@ fun TodayScreen(app: DietetykApp) {
     var consumed by remember { mutableIntStateOf(0) }
     var hasProfile by remember { mutableStateOf(true) }
     var meals by remember { mutableStateOf<List<DayMeal>>(emptyList()) }
+    val dayKey = remember { LocalDate.now().let { "%04d%02d%02d".format(it.year, it.monthValue, it.dayOfMonth) } }
+    var water by remember { mutableIntStateOf(app.settings.waterMl(dayKey)) }
+    val waterTarget = 2500
 
     LaunchedEffect(Unit) {
         val p = app.profileRepo.get()
@@ -113,11 +119,44 @@ fun TodayScreen(app: DietetykApp) {
             }
         }
 
+        WaterCard(water, waterTarget) { delta ->
+            water = (water + delta).coerceAtLeast(0)
+            app.settings.setWaterMl(dayKey, water)
+        }
+
         if (meals.isNotEmpty()) {
             Text("Posiłki dnia", color = Palette.TextDark, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 20.dp, bottom = 8.dp))
             meals.forEachIndexed { i, m -> MealRow(i, m) }
         }
     }
+}
+
+@Composable
+private fun WaterCard(water: Int, target: Int, onChange: (Int) -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(top = 12.dp).background(Palette.Card, RoundedCornerShape(18.dp)).padding(16.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("💧 Woda", color = Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text("$water / $target ml", color = Palette.Blue, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        }
+        // pasek postępu
+        Box(Modifier.fillMaxWidth().padding(top = 10.dp).height(8.dp).background(Palette.Line, RoundedCornerShape(4.dp))) {
+            val frac = if (target > 0) min(1f, water.toFloat() / target) else 0f
+            Box(Modifier.fillMaxWidth(frac).height(8.dp).background(Palette.Blue, RoundedCornerShape(4.dp)))
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            WaterBtn("+250 ml", Modifier.weight(1f)) { onChange(250) }
+            WaterBtn("+500 ml", Modifier.weight(1f)) { onChange(500) }
+            WaterBtn("−", Modifier.width(56.dp)) { onChange(-250) }
+        }
+    }
+}
+
+@Composable
+private fun WaterBtn(label: String, modifier: Modifier, onClick: () -> Unit) {
+    Box(
+        modifier.background(Palette.Blue, RoundedCornerShape(12.dp)).clickable { onClick() }.padding(vertical = 10.dp),
+        contentAlignment = Alignment.Center
+    ) { Text(label, color = androidx.compose.ui.graphics.Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
 }
 
 @Composable

@@ -1,6 +1,7 @@
 package pl.filebit.dietetyk.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,13 +29,17 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import pl.filebit.dietetyk.DietetykApp
 
-private data class PlanMeal(val name: String, val time: String, val kcal: Int, val ingredients: String)
+private data class PlanMeal(
+    val name: String, val time: String, val kcal: Int, val ingredients: String,
+    val ings: List<Pair<String, Int>>
+)
 
 @Composable
 fun PlanScreen(app: DietetykApp) {
     var meals by remember { mutableStateOf<List<PlanMeal>?>(null) }
     var targetKcal by remember { mutableStateOf(0) }
     var loaded by remember { mutableStateOf(false) }
+    var showShopping by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         val entity = app.database.planDao().get()
@@ -44,11 +49,15 @@ fun PlanScreen(app: DietetykApp) {
             meals = runCatching {
                 Json.parseToJsonElement(entity.planJson).jsonObject["meals"]!!.jsonArray.map { e ->
                     val o = e.jsonObject
+                    val ings = (o["ings"] as? kotlinx.serialization.json.JsonArray)?.mapNotNull { it as? kotlinx.serialization.json.JsonObject }?.map { io ->
+                        (io["name"]?.jsonPrimitive?.content ?: "") to (io["grams"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0)
+                    } ?: emptyList()
                     PlanMeal(
                         name = o["name"]?.jsonPrimitive?.content ?: "Posiłek",
                         time = o["timeHint"]?.jsonPrimitive?.content ?: "",
                         kcal = o["kcal"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
-                        ingredients = o["ingredients"]?.jsonPrimitive?.content ?: ""
+                        ingredients = o["ingredients"]?.jsonPrimitive?.content ?: "",
+                        ings = ings
                     )
                 }
             }.getOrDefault(emptyList())
@@ -80,6 +89,33 @@ fun PlanScreen(app: DietetykApp) {
                 }
                 if (meal.ingredients.isNotBlank()) {
                     Text(meal.ingredients, color = Palette.Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
+                }
+            }
+        }
+
+        // === Lista zakupów (agregacja składników) ===
+        val shopping = m.flatMap { it.ings }
+            .groupBy({ it.first }, { it.second })
+            .mapValues { it.value.sum() }
+            .filterKeys { it.isNotBlank() }
+        if (shopping.isNotEmpty()) {
+            Row(
+                Modifier.fillMaxWidth().padding(top = 4.dp)
+                    .background(Palette.Green, RoundedCornerShape(14.dp))
+                    .clickable { showShopping = !showShopping }.padding(14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("🛒 Lista zakupów (${shopping.size})", color = androidx.compose.ui.graphics.Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text(if (showShopping) "▲" else "▼", color = androidx.compose.ui.graphics.Color.White, fontSize = 14.sp)
+            }
+            if (showShopping) {
+                Column(Modifier.fillMaxWidth().padding(top = 8.dp).background(Palette.Card, RoundedCornerShape(14.dp)).padding(14.dp)) {
+                    shopping.entries.sortedBy { it.key }.forEach { (name, grams) ->
+                        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(name, color = Palette.TextDark, fontSize = 14.sp)
+                            Text("${grams} g", color = Palette.Muted, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
         }

@@ -15,5 +15,9 @@ class SettingsStore(context: Context) {
         get() = prefs.getString(KEY_API, "").orEmpty().ifBlank { BuildConfig.CLAUDE_API_KEY }
         set(value) { prefs.edit().putString(KEY_API, value).apply() }
 
+    /** Wypite ml wody dla danego dnia (klucz np. "water_20260705"). Resetuje się per dzień. */
+    fun waterMl(dayKey: String): Int = prefs.getInt("water_$dayKey", 0)
+    fun setWaterMl(dayKey: String, ml: Int) { prefs.edit().putInt("water_$dayKey", ml.coerceAtLeast(0)).apply() }
+
     private companion object { const val KEY_API = "claude_api_key" }
 }

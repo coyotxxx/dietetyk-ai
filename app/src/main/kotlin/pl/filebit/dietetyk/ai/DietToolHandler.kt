@@ -192,6 +192,11 @@ class DietToolHandler(
                     put("name", pm.name); put("timeHint", pm.time)
                     put("kcal", k.toInt()); put("proteinG", pr.toInt()); put("carbsG", c.toInt()); put("fatG", f.toInt())
                     put("ingredients", pm.recipe.ingredients.joinToString(", ") { "${it.productName} ${it.grams}g" })
+                    put("ings", buildJsonArray {
+                        pm.recipe.ingredients.forEach { ing ->
+                            add(buildJsonObject { put("name", ing.productName); put("grams", ing.grams) })
+                        }
+                    })
                 })
             }
         }
