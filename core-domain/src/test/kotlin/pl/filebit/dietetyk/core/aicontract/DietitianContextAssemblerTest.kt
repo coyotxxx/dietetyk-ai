@@ -1,0 +1,62 @@
+package pl.filebit.dietetyk.core.aicontract
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import pl.filebit.dietetyk.core.model.AdherenceSummary
+import pl.filebit.dietetyk.core.model.ClinicalContext
+import pl.filebit.dietetyk.core.model.DailyEnergyLog
+import pl.filebit.dietetyk.core.model.DietGoalType
+import pl.filebit.dietetyk.core.model.Gender
+import pl.filebit.dietetyk.core.model.NutritionProfile
+import pl.filebit.dietetyk.core.model.WeightSample
+
+class DietitianContextAssemblerTest {
+
+    private val now = 1_700_000_000_000L
+    private val day = 86_400_000L
+    private val profile = NutritionProfile(Gender.MALE, 30, 180, 80.0, goal = DietGoalType.FAT_LOSS)
+
+    // ≥3 pomiary — TrendAnalyzer wymaga próbki do policzenia trendu
+    private fun weights() = listOf(
+        WeightSample(now - 14 * day, 80.6), WeightSample(now - 7 * day, 80.3), WeightSample(now, 80.0))
+    private fun logs(kcal: Int, count: Int = 10) = (1..count).map { DailyEnergyLog(now - it * day, kcal, true) }
+
+    @Test
+    fun `assembler spina caly silnik w komplet kontekstu`() {
+        val ctx = DietitianContextAssembler.assemble(
+            careState = CareState(CareStage.ACTIVE),
+            profile = profile, clinical = ClinicalContext.NONE,
+            weightSamples = weights(), energyLogs = logs(2100),
+            memoryNotes = listOf("nie znosi twarogu"),
+            adherence14d = AdherenceSummary(sampleDays = 12, avgKcalPct = 98, avgProteinPct = 90),
+            today = DaySnapshot(kcalConsumed = 1450, mealsEaten = 2, mealsPlanned = 3),
+            lastCheckIn = null, daysSinceLastLog = 1, nowMs = now
+        )
+        assertNotNull("cel policzony", ctx.currentGoal)
+        assertTrue("kcal sensowne", ctx.currentGoal!!.kcal in 1500..2600)
+        assertTrue("trend ma dane", ctx.weightTrend.hasEnoughData)
+        assertNotNull("adaptacyjny TDEE policzony", ctx.tdeeEstimate)
+        assertEquals("10 dni pełnych logów", 10, ctx.completeLogDays14d)
+        assertEquals("waga = najświeższa", 80.0, ctx.latestWeightKg)
+        assertTrue("pamięć przekazana", ctx.memoryNotes.contains("nie znosi twarogu"))
+        assertFalse("brak sygnału do lekarza przy normie", ctx.referToDoctor)
+        assertTrue("user zaangażowany (log 1 dzień temu)", ctx.isEngaged)
+    }
+
+    @Test
+    fun `glodzenie ponizej minimum ustawia skierowanie do lekarza w kontekscie`() {
+        val ctx = DietitianContextAssembler.assemble(
+            careState = CareState(CareStage.ACTIVE),
+            profile = profile, clinical = ClinicalContext.NONE,
+            weightSamples = weights(), energyLogs = logs(1100),  // <1500 floor przez 10 dni
+            memoryNotes = emptyList(),
+            adherence14d = AdherenceSummary(sampleDays = 10),
+            today = DaySnapshot(), lastCheckIn = null, daysSinceLastLog = 0, nowMs = now
+        )
+        assertTrue("red-flag → skierowanie", ctx.referToDoctor)
+        assertTrue("komunikat wypełniony", ctx.redFlagMessage.isNotBlank())
+    }
+}
