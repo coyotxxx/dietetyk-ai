@@ -2,6 +2,7 @@ package pl.filebit.dietetyk.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -106,6 +107,29 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
     val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) { update = UpdateChecker.latest(BuildConfig.VERSION_NAME) }
 
+    // Aparat: zdjęcie posiłku → wysyłka do czatu (AI rozpoznaje + liczy makro).
+    var showAddSheet by remember { mutableStateOf(false) }
+    var photoUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    val cameraLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.TakePicture()
+    ) { success ->
+        val uri = photoUri
+        if (success && uri != null) {
+            app.pendingChatPhoto = pl.filebit.dietetyk.ImageUtil.toBase64Jpeg(context, uri)
+            onGoToChat()
+        }
+    }
+    val launchCamera = {
+        val uri = pl.filebit.dietetyk.ImageUtil.newPhotoUri(context)
+        photoUri = uri
+        cameraLauncher.launch(uri)
+    }
+
+    if (showAddSheet) {
+        AddMealSheet(onDismiss = { showAddSheet = false }, onPhoto = { showAddSheet = false; launchCamera() })
+    }
+
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
             Column {
@@ -203,7 +227,7 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
                         }
                     },
                     onSkip = { app.settings.setMealStatus(dayKey, m.name, "SKIPPED"); reloadKey++; onGoToChat() },
-                    onReplace = { app.settings.setMealStatus(dayKey, m.name, "REPLACED"); reloadKey++; onGoToChat() },
+                    onReplace = { app.settings.setMealStatus(dayKey, m.name, "REPLACED"); reloadKey++; launchCamera() },
                     onUndo = {
                         scope.launch {
                             if (logId > 0) app.database.energyLogDao().deleteById(logId)
@@ -212,6 +236,48 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
                         }
                     }
                 )
+            }
+        }
+        androidx.compose.foundation.layout.Spacer(Modifier.height(84.dp))
+    }
+        // FAB „Sfotografuj posiłek" (główna akcja logowania)
+        Row(
+            Modifier.align(Alignment.BottomEnd).padding(20.dp)
+                .background(Palette.Green, RoundedCornerShape(28.dp))
+                .clickable { showAddSheet = true }.padding(horizontal = 20.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("📷", fontSize = 18.sp)
+            Text("Sfotografuj posiłek", color = androidx.compose.ui.graphics.Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
+        }
+    }
+}
+
+@Composable
+private fun AddMealSheet(onDismiss: () -> Unit, onPhoto: () -> Unit) {
+    @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Card) {
+        Column(Modifier.fillMaxWidth().padding(20.dp).padding(bottom = 24.dp)) {
+            Text("Co chcesz dodać?", color = Palette.TextDark, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
+            Row(
+                Modifier.fillMaxWidth().background(Palette.GreenTint, RoundedCornerShape(14.dp)).clickable { onPhoto() }.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("📷", fontSize = 26.sp)
+                Column(Modifier.padding(start = 12.dp)) {
+                    Text("Zdjęcie posiłku", color = Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text("AI rozpozna danie i policzy kalorie", color = Palette.Muted, fontSize = 12.sp)
+                }
+            }
+            Row(
+                Modifier.fillMaxWidth().padding(top = 10.dp).background(Palette.Card, RoundedCornerShape(14.dp)).border(1.dp, Palette.Line, RoundedCornerShape(14.dp)).padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("🏷️", fontSize = 26.sp)
+                Column(Modifier.padding(start = 12.dp)) {
+                    Text("Skanuj kod kreskowy", color = Palette.Muted, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text("Wkrótce — produkt z opakowania", color = Palette.Muted, fontSize = 12.sp)
+                }
             }
         }
     }

@@ -53,6 +53,9 @@ class DietetykApp : Application() {
     /** Wiadomość do automatycznego wysłania w czacie po przejściu tam (np. „Zacznij wizytę"). */
     var pendingChatMessage: String? = null
 
+    /** Zdjęcie (base64 JPEG) do wysłania w czacie po przejściu tam (FAB „Sfotografuj posiłek"). */
+    var pendingChatPhoto: String? = null
+
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
