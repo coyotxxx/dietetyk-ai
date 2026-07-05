@@ -48,11 +48,12 @@ import pl.filebit.dietetyk.update.UpdateChecker
 import pl.filebit.dietetyk.update.UpdateInfo
 import pl.filebit.dietetyk.core.calc.DailyMacroGoal
 import pl.filebit.dietetyk.core.calc.GoalPipeline
+import pl.filebit.dietetyk.data.db.EnergyLogEntity
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlin.math.min
 
-private data class DayMeal(val name: String, val time: String, val kcal: Int)
+private data class DayMeal(val name: String, val time: String, val kcal: Int, val p: Int, val c: Int, val f: Int)
 
 @Composable
 fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Unit = {}) {
@@ -67,8 +68,10 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
     val dayKey = remember { LocalDate.now().let { "%04d%02d%02d".format(it.year, it.monthValue, it.dayOfMonth) } }
     var water by remember { mutableIntStateOf(app.settings.waterMl(dayKey)) }
     val waterTarget = 2500
+    var reloadKey by remember { mutableIntStateOf(0) }
+    val eaten = remember(reloadKey) { app.settings.eatenMeals(dayKey) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(reloadKey) {
         val p = app.profileRepo.get()
         hasProfile = p != null
         val w = app.weightRepo.latest()?.weightKg
@@ -86,7 +89,10 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
                     DayMeal(
                         o["name"]?.jsonPrimitive?.content ?: "Posiłek",
                         o["timeHint"]?.jsonPrimitive?.content ?: "",
-                        o["kcal"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+                        o["kcal"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
+                        o["proteinG"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
+                        o["carbsG"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
+                        o["fatG"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
                     )
                 }
             }.getOrDefault(emptyList())
@@ -179,7 +185,17 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
 
         if (meals.isNotEmpty()) {
             Text("Posiłki dnia", color = Palette.TextDark, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 20.dp, bottom = 8.dp))
-            meals.forEachIndexed { i, m -> MealRow(i, m) }
+            meals.forEachIndexed { i, m ->
+                MealRow(i, m, eaten.contains(m.name)) {
+                    scope.launch {
+                        app.database.energyLogDao().insert(
+                            EnergyLogEntity(dateMs = System.currentTimeMillis(), kcalConsumed = m.kcal, isComplete = false, proteinG = m.p, carbsG = m.c, fatG = m.f)
+                        )
+                        app.settings.markMealEaten(dayKey, m.name)
+                        reloadKey++
+                    }
+                }
+            }
         }
     }
 }
@@ -216,7 +232,7 @@ private fun WaterBtn(label: String, modifier: Modifier, onClick: () -> Unit) {
 }
 
 @Composable
-private fun MealRow(index: Int, meal: DayMeal) {
+private fun MealRow(index: Int, meal: DayMeal, isEaten: Boolean, onEat: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().padding(bottom = 8.dp).background(Palette.Card, RoundedCornerShape(14.dp)).padding(14.dp),
         horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
@@ -227,7 +243,13 @@ private fun MealRow(index: Int, meal: DayMeal) {
         }
         Column(horizontalAlignment = Alignment.End) {
             Text("${meal.kcal} kcal", color = Palette.Orange, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
-            Text("⏳ Zaplanowany", color = Palette.Muted, fontSize = 11.sp)
+            if (isEaten) {
+                Text("✓ Zjadłem", color = Palette.Green, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            } else {
+                Box(Modifier.padding(top = 3.dp).background(Palette.GreenTint, RoundedCornerShape(8.dp)).clickable { onEat() }.padding(horizontal = 10.dp, vertical = 4.dp)) {
+                    Text("Zjadłem", color = Palette.GreenDark, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
         }
     }
 }

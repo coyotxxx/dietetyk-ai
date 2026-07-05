@@ -29,5 +29,11 @@ class SettingsStore(context: Context) {
         get() = prefs.getString("user_name", "").orEmpty()
         set(v) { prefs.edit().putString("user_name", v).apply() }
 
+    /** Zjedzone posiłki danego dnia (po nazwie) — status na Dziś. */
+    fun eatenMeals(dayKey: String): Set<String> = prefs.getStringSet("eaten_$dayKey", emptySet()) ?: emptySet()
+    fun markMealEaten(dayKey: String, name: String) {
+        prefs.edit().putStringSet("eaten_$dayKey", eatenMeals(dayKey) + name).apply()
+    }
+
     private companion object { const val KEY_API = "claude_api_key" }
 }
