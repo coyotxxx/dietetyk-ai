@@ -46,6 +46,11 @@ private enum class Tab(val label: String, val icon: ImageVector) {
 
 @Composable
 fun AppScaffold(app: DietetykApp) {
+    var onboarded by remember { mutableStateOf(app.settings.onboardingDone) }
+    if (!onboarded) {
+        OnboardingScreen { app.settings.onboardingDone = true; onboarded = true }
+        return
+    }
     var tab by remember { mutableStateOf(Tab.DIETETYK) }
     var showNotifs by remember { mutableStateOf(false) }
     Scaffold(

@@ -19,5 +19,10 @@ class SettingsStore(context: Context) {
     fun waterMl(dayKey: String): Int = prefs.getInt("water_$dayKey", 0)
     fun setWaterMl(dayKey: String, ml: Int) { prefs.edit().putInt("water_$dayKey", ml.coerceAtLeast(0)).apply() }
 
+    /** Czy pokazano już ekran powitalny (onboarding). */
+    var onboardingDone: Boolean
+        get() = prefs.getBoolean("onboarding_done", false)
+        set(v) { prefs.edit().putBoolean("onboarding_done", v).apply() }
+
     private companion object { const val KEY_API = "claude_api_key" }
 }
