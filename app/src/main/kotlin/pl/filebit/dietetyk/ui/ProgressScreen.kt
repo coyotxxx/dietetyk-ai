@@ -85,7 +85,7 @@ fun ProgressScreen(app: DietetykApp, onGoToChat: () -> Unit = {}) {
         val delta = if (latest != null && startRanged != null) latest - startRanged else null
 
         // Karta wagi + delta
-        Column(Modifier.fillMaxWidth().padding(top = 12.dp).background(Palette.Card, RoundedCornerShape(18.dp)).padding(18.dp)) {
+        Column(Modifier.fillMaxWidth().padding(top = 12.dp).card(18.dp).background(Palette.Card, RoundedCornerShape(18.dp)).padding(18.dp)) {
             Text("Aktualna waga", color = Palette.Muted, fontSize = 13.sp)
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(latest?.let { kgP(it) + " kg" } ?: "—", color = Palette.TextDark, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold)
@@ -139,7 +139,7 @@ fun ProgressScreen(app: DietetykApp, onGoToChat: () -> Unit = {}) {
             WeightChart(
                 ranged, goalW,
                 Modifier.fillMaxWidth().padding(top = 10.dp).height(170.dp)
-                    .background(Palette.Card, RoundedCornerShape(18.dp)).padding(16.dp)
+                    .card(18.dp).background(Palette.Card, RoundedCornerShape(18.dp)).padding(16.dp)
             )
             // Stopka: cel + ETA
             val trend = if (ranged.size >= 3) TrendAnalyzer.analyze(ranged) else null
@@ -176,7 +176,7 @@ fun ProgressScreen(app: DietetykApp, onGoToChat: () -> Unit = {}) {
         if (visits.isNotEmpty()) {
             Text("Wizyty kontrolne", color = Palette.TextDark, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 20.dp, bottom = 8.dp))
             visits.forEachIndexed { i, v ->
-                Column(Modifier.fillMaxWidth().padding(bottom = 8.dp).background(Palette.Card, RoundedCornerShape(14.dp)).padding(14.dp)) {
+                Column(Modifier.fillMaxWidth().padding(bottom = 8.dp).card(14.dp).background(Palette.Card, RoundedCornerShape(14.dp)).padding(14.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text("Wizyta kontrolna #${visits.size - i}", color = Palette.TextDark, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         Text(dayLabel(v.dateMs), color = Palette.Muted, fontSize = 12.sp)
@@ -196,7 +196,7 @@ fun ProgressScreen(app: DietetykApp, onGoToChat: () -> Unit = {}) {
         }
         samples.sortedByDescending { it.dateMs }.take(20).forEach { s ->
             Row(
-                Modifier.fillMaxWidth().padding(vertical = 3.dp).background(Palette.Card, RoundedCornerShape(10.dp)).padding(12.dp),
+                Modifier.fillMaxWidth().padding(vertical = 3.dp).card(10.dp).background(Palette.Card, RoundedCornerShape(10.dp)).padding(12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(dayLabel(s.dateMs), color = Palette.Muted, fontSize = 13.sp)
@@ -215,7 +215,7 @@ private fun kgP(d: Double): String = (if (d % 1.0 == 0.0) "%.0f" else "%.1f").fo
 
 @Composable
 private fun MetricTileP(label: String, value: String, tint: androidx.compose.ui.graphics.Color, modifier: Modifier) {
-    Column(modifier.background(Palette.Card, RoundedCornerShape(14.dp)).padding(14.dp)) {
+    Column(modifier.card(14.dp).background(Palette.Card, RoundedCornerShape(14.dp)).padding(14.dp)) {
         Text(value, color = tint, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
         Text(label, color = Palette.Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
     }

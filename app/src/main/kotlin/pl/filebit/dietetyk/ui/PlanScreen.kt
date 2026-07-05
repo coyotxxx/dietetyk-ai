@@ -36,7 +36,7 @@ import pl.filebit.dietetyk.DietetykApp
 private data class ShopItem(val name: String, val grams: Int, val cat: String)
 private data class PlanMeal(
     val name: String, val time: String, val kcal: Int, val prep: Int, val ingredients: String,
-    val ings: List<ShopItem>
+    val ings: List<ShopItem>, val emoji: String = "🍽️"
 )
 
 private val RECIPE_VARIANTS = listOf("Tradycyjnie", "Air Fryer", "Thermomix")
@@ -51,7 +51,7 @@ private fun MealCard(app: DietetykApp, index: Int, meal: PlanMeal) {
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    Column(Modifier.fillMaxWidth().padding(bottom = 10.dp).background(Palette.Card, RoundedCornerShape(16.dp))
+    Column(Modifier.fillMaxWidth().padding(bottom = 10.dp).card(16.dp).background(Palette.Card, RoundedCornerShape(16.dp))
         .clickable {
             expanded = !expanded
             if (expanded && recipe == null && !loading) {
@@ -69,7 +69,11 @@ private fun MealCard(app: DietetykApp, index: Int, meal: PlanMeal) {
         }
         .padding(14.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
-            Column(Modifier.weight(1f).padding(end = 8.dp)) {
+            Box(
+                Modifier.size(52.dp).background(Palette.GreenTint, RoundedCornerShape(14.dp)),
+                contentAlignment = Alignment.Center
+            ) { Text(meal.emoji, fontSize = 26.sp) }
+            Column(Modifier.weight(1f).padding(start = 12.dp, end = 8.dp)) {
                 Text("POSIŁEK ${index + 1}" + (if (meal.time.isNotBlank()) " · ${meal.time}" else ""), color = Palette.Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 Text(meal.name, color = Palette.TextDark, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 2.dp))
             }
@@ -133,7 +137,8 @@ fun PlanScreen(app: DietetykApp) {
                         kcal = o["kcal"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
                         prep = o["prepMinutes"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
                         ingredients = o["ingredients"]?.jsonPrimitive?.content ?: "",
-                        ings = ings
+                        ings = ings,
+                        emoji = o["emoji"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() } ?: mealEmoji(o["name"]?.jsonPrimitive?.content ?: "")
                     )
                 }
             }.getOrDefault(emptyList())
@@ -173,7 +178,7 @@ fun PlanScreen(app: DietetykApp) {
                 Text(if (showShopping) "▲" else "▼", color = androidx.compose.ui.graphics.Color.White, fontSize = 14.sp)
             }
             if (showShopping) {
-                Column(Modifier.fillMaxWidth().padding(top = 8.dp).background(Palette.Card, RoundedCornerShape(14.dp)).padding(14.dp)) {
+                Column(Modifier.fillMaxWidth().padding(top = 8.dp).card(14.dp).background(Palette.Card, RoundedCornerShape(14.dp)).padding(14.dp)) {
                     byCat.forEach { (cat, items) ->
                         Text(cat.uppercase(), color = Palette.Green, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 8.dp, bottom = 2.dp))
                         items.sortedBy { it.first }.forEach { (name, grams, _) ->

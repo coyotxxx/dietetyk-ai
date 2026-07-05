@@ -173,7 +173,7 @@ fun ProfileScreen(app: DietetykApp) {
 
         // Stepper liczby posiłków
         Row(
-            Modifier.fillMaxWidth().padding(top = 8.dp).background(Palette.Card, RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 8.dp),
+            Modifier.fillMaxWidth().padding(top = 8.dp).card(12.dp).background(Palette.Card, RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
         ) {
             Text("🍽️ Liczba posiłków", color = Palette.TextDark, fontSize = 14.sp, fontWeight = FontWeight.Bold)
@@ -247,7 +247,7 @@ fun ProfileScreen(app: DietetykApp) {
 @Composable
 private fun SettingRow(label: String, value: String, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().padding(top = 8.dp).background(Palette.Card, RoundedCornerShape(12.dp))
+        Modifier.fillMaxWidth().padding(top = 8.dp).card(12.dp).background(Palette.Card, RoundedCornerShape(12.dp))
             .clickable { onClick() }.padding(14.dp),
         horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
     ) {
@@ -259,7 +259,7 @@ private fun SettingRow(label: String, value: String, onClick: () -> Unit) {
 @Composable
 private fun InfoRow(label: String, value: String) {
     Row(
-        Modifier.fillMaxWidth().padding(top = 8.dp).background(Palette.Card, RoundedCornerShape(12.dp)).padding(14.dp),
+        Modifier.fillMaxWidth().padding(top = 8.dp).card(12.dp).background(Palette.Card, RoundedCornerShape(12.dp)).padding(14.dp),
         horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
     ) {
         Text(label, color = Palette.Muted, fontSize = 14.sp)

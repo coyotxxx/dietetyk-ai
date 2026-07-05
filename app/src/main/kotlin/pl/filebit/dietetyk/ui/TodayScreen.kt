@@ -258,7 +258,7 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
                 )
             }
         }
-        androidx.compose.foundation.layout.Spacer(Modifier.height(84.dp))
+        androidx.compose.foundation.layout.Spacer(Modifier.height(100.dp))
     }
         // FAB „Sfotografuj posiłek" (główna akcja logowania)
         Row(
@@ -290,7 +290,7 @@ private fun AddMealSheet(onDismiss: () -> Unit, onPhoto: () -> Unit) {
                 }
             }
             Row(
-                Modifier.fillMaxWidth().padding(top = 10.dp).background(Palette.Card, RoundedCornerShape(14.dp)).border(1.dp, Palette.Line, RoundedCornerShape(14.dp)).padding(16.dp),
+                Modifier.fillMaxWidth().padding(top = 10.dp).card(14.dp).background(Palette.Card, RoundedCornerShape(14.dp)).border(1.dp, Palette.Line, RoundedCornerShape(14.dp)).padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("🏷️", fontSize = 26.sp)
@@ -379,7 +379,7 @@ private fun MealRow(index: Int, meal: DayMeal, status: String, onEat: () -> Unit
 
 @Composable
 private fun Card(content: @Composable () -> Unit) {
-    Column(Modifier.fillMaxWidth().background(Palette.Card, RoundedCornerShape(18.dp)).padding(16.dp)) { content() }
+    Column(Modifier.fillMaxWidth().card(18.dp).background(Palette.Card, RoundedCornerShape(18.dp)).padding(16.dp)) { content() }
 }
 
 @Composable
