@@ -8,6 +8,8 @@
     <application
         android:name=".DietetykApp"
         android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="Dietetyk AI"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
