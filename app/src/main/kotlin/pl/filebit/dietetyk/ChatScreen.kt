@@ -43,7 +43,17 @@ import pl.filebit.dietetyk.core.aicontract.DietitianPrompt
 import pl.filebit.dietetyk.core.aicontract.InterviewTopic
 import pl.filebit.dietetyk.ui.Palette
 
-private data class UiMsg(val fromUser: Boolean, val text: String)
+private data class UiMsg(val fromUser: Boolean, val text: String, val actions: List<String> = emptyList())
+
+private val ACTIONS_RE = Regex("""\[\[\s*akcje\s*:\s*(.+?)\s*]]""", RegexOption.IGNORE_CASE)
+
+/** Wyodrębnij szybkie odpowiedzi `[[akcje: A | B | C]]` i oczyść tekst. */
+private fun parseActions(raw: String): UiMsg {
+    val m = ACTIONS_RE.find(raw)
+    val actions = m?.groupValues?.get(1)?.split("|")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList()
+    val text = ACTIONS_RE.replace(raw, "").trim()
+    return UiMsg(false, text.ifBlank { "…" }, actions)
+}
 
 @Composable
 fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier) {
@@ -64,6 +74,19 @@ fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier) {
     var sending by remember { mutableStateOf(false) }
     var photoUri by remember { mutableStateOf<android.net.Uri?>(null) }
 
+    val send: (String) -> Unit = send@{ raw ->
+        val text = raw.trim()
+        if (text.isEmpty() || sending) return@send
+        messages.add(UiMsg(true, text))
+        sending = true
+        scope.launch {
+            val reply = runCatching { sendToDietitian(app, history, text, handler, apiKey) }
+                .getOrElse { "Coś poszło nie tak: ${it.message}" }
+            messages.add(parseActions(reply))
+            sending = false
+        }
+    }
+
     val cameraLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.TakePicture()
     ) { success ->
@@ -81,7 +104,7 @@ fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier) {
                         handler, apiKey, imageB64 = b64
                     )
                 }.getOrElse { "Coś poszło nie tak przy analizie zdjęcia: ${it.message}" }
-                messages.add(UiMsg(false, reply))
+                messages.add(parseActions(reply))
                 sending = false
             }
         }
@@ -90,7 +113,7 @@ fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxSize().background(Palette.Bg).imePadding().padding(12.dp)) {
         Text("Dietetyk AI", color = Palette.TextDark, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
         LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(messages) { msg -> Bubble(msg) }
+            items(messages) { msg -> MessageItem(msg, sending) { send(it) } }
             if (sending) item { Text("Dietetyk pisze…", color = Palette.Green, fontSize = 13.sp) }
         }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -108,19 +131,7 @@ fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier) {
                 modifier = Modifier.weight(1f), placeholder = { Text("Napisz do dietetyka…") }, enabled = !sending
             )
             Button(
-                onClick = {
-                    val text = input.trim()
-                    if (text.isEmpty() || sending) return@Button
-                    input = ""
-                    messages.add(UiMsg(true, text))
-                    sending = true
-                    scope.launch {
-                        val reply = runCatching { sendToDietitian(app, history, text, handler, apiKey) }
-                            .getOrElse { "Coś poszło nie tak: ${it.message}" }
-                        messages.add(UiMsg(false, reply))
-                        sending = false
-                    }
-                },
+                onClick = { send(input); input = "" },
                 colors = ButtonDefaults.buttonColors(containerColor = Palette.Green),
                 modifier = Modifier.padding(start = 8.dp)
             ) { Text("Wyślij") }
@@ -137,6 +148,25 @@ private suspend fun sendToDietitian(
         ?: DietitianPrompt.renderCareGuidance(CareState(CareStage.INTERVIEW, InterviewTopic.entries.toList()))
     val system = DietitianPrompt.systemPrompt() + "\n\n" + contextText
     return DietitianConversation(ClaudeHttpApi(apiKey)).send(system, history, userText, handler, imageB64 = imageB64)
+}
+
+@Composable
+private fun MessageItem(msg: UiMsg, sending: Boolean, onAction: (String) -> Unit) {
+    Column(Modifier.fillMaxWidth()) {
+        Bubble(msg)
+        if (!msg.fromUser && msg.actions.isNotEmpty()) {
+            Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                msg.actions.take(3).forEach { a ->
+                    Box(
+                        Modifier.weight(1f, fill = false).background(Palette.Green, RoundedCornerShape(20.dp))
+                            .clickable(enabled = !sending) { onAction(a) }
+                            .padding(horizontal = 14.dp, vertical = 9.dp),
+                        contentAlignment = Alignment.Center
+                    ) { Text(a, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
+                }
+            }
+        }
+    }
 }
 
 @Composable
