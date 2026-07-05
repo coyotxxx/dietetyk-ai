@@ -240,13 +240,14 @@ private fun Card(content: @Composable () -> Unit) {
 @Composable
 private fun MacroRing(name: String, consumed: Int, target: Int, color: Color) {
     val frac = if (target > 0) min(1f, consumed.toFloat() / target) else 0f
+    val lineColor = Palette.Line
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 5.dp)) {
         Box(Modifier.size(26.dp), contentAlignment = Alignment.Center) {
             Canvas(Modifier.fillMaxSize()) {
                 val stroke = 5f
                 val d = size.minDimension - stroke
                 val tl = androidx.compose.ui.geometry.Offset((size.width - d) / 2, (size.height - d) / 2)
-                drawArc(Palette.Line, -90f, 360f, false, tl, Size(d, d), style = Stroke(stroke, cap = StrokeCap.Round))
+                drawArc(lineColor, -90f, 360f, false, tl, Size(d, d), style = Stroke(stroke, cap = StrokeCap.Round))
                 drawArc(color, -90f, 360f * frac, false, tl, Size(d, d), style = Stroke(stroke, cap = StrokeCap.Round))
             }
         }
@@ -261,13 +262,15 @@ private fun MacroRing(name: String, consumed: Int, target: Int, color: Color) {
 @Composable
 private fun KcalRing(consumed: Int, target: Int, modifier: Modifier) {
     val frac = if (target > 0) min(1f, consumed.toFloat() / target) else 0f
+    val lineColor = Palette.Line
+    val greenColor = Palette.Green
     Box(modifier, contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val stroke = 16f
             val d = min(size.width, size.height) - stroke
             val topLeft = androidx.compose.ui.geometry.Offset((size.width - d) / 2, (size.height - d) / 2)
-            drawArc(Palette.Line, -90f, 360f, false, topLeft, Size(d, d), style = Stroke(stroke, cap = StrokeCap.Round))
-            drawArc(Palette.Green, -90f, 360f * frac, false, topLeft, Size(d, d), style = Stroke(stroke, cap = StrokeCap.Round))
+            drawArc(lineColor, -90f, 360f, false, topLeft, Size(d, d), style = Stroke(stroke, cap = StrokeCap.Round))
+            drawArc(greenColor, -90f, 360f * frac, false, topLeft, Size(d, d), style = Stroke(stroke, cap = StrokeCap.Round))
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text("${(target - consumed).coerceAtLeast(0)}", color = Palette.TextDark, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)

@@ -10,6 +10,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.MaterialTheme
 import androidx.core.content.ContextCompat
 import pl.filebit.dietetyk.ui.AppScaffold
+import pl.filebit.dietetyk.ui.DietetykTheme
 
 /**
  * Nawigacja Compose na bazie `design/Dietetyk AI.dc.html`: 5 zakładek
@@ -23,7 +24,7 @@ class MainActivity : ComponentActivity() {
         val app = application as DietetykApp
         maybeRequestNotifications()
         setContent {
-            MaterialTheme { AppScaffold(app) }
+            MaterialTheme { DietetykTheme { AppScaffold(app) } }
         }
     }
 

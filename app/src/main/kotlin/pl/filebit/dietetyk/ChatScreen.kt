@@ -40,12 +40,9 @@ import pl.filebit.dietetyk.core.aicontract.CareStage
 import pl.filebit.dietetyk.core.aicontract.CareState
 import pl.filebit.dietetyk.core.aicontract.DietitianPrompt
 import pl.filebit.dietetyk.core.aicontract.InterviewTopic
+import pl.filebit.dietetyk.ui.Palette
 
 private data class UiMsg(val fromUser: Boolean, val text: String)
-
-private val Bg = Color(0xFFE9E2D6)
-private val Green = Color(0xFF3E7C5B)
-private val TextDark = Color(0xFF23261F)
 
 @Composable
 fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier) {
@@ -64,11 +61,11 @@ fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier) {
     var input by remember { mutableStateOf("") }
     var sending by remember { mutableStateOf(false) }
 
-    Column(modifier.fillMaxSize().background(Bg).imePadding().padding(12.dp)) {
-        Text("Dietetyk AI", color = TextDark, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
+    Column(modifier.fillMaxSize().background(Palette.Bg).imePadding().padding(12.dp)) {
+        Text("Dietetyk AI", color = Palette.TextDark, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
         LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(messages) { msg -> Bubble(msg) }
-            if (sending) item { Text("Dietetyk pisze…", color = Green, fontSize = 13.sp) }
+            if (sending) item { Text("Dietetyk pisze…", color = Palette.Green, fontSize = 13.sp) }
         }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
@@ -89,7 +86,7 @@ fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier) {
                         sending = false
                     }
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = Green),
+                colors = ButtonDefaults.buttonColors(containerColor = Palette.Green),
                 modifier = Modifier.padding(start = 8.dp)
             ) { Text("Wyślij") }
         }
@@ -112,11 +109,11 @@ private fun Bubble(msg: UiMsg) {
     Box(Modifier.fillMaxWidth(), contentAlignment = if (msg.fromUser) Alignment.CenterEnd else Alignment.CenterStart) {
         Text(
             msg.text,
-            color = if (msg.fromUser) Color.White else TextDark,
+            color = if (msg.fromUser) Color.White else Palette.TextDark,
             fontSize = 15.sp,
             modifier = Modifier
                 .widthIn(max = 300.dp)
-                .background(if (msg.fromUser) Green else Color(0xFFEAF3EC), RoundedCornerShape(14.dp))
+                .background(if (msg.fromUser) Palette.Green else Palette.GreenTint, RoundedCornerShape(14.dp))
                 .padding(horizontal = 12.dp, vertical = 8.dp)
         )
     }
@@ -125,13 +122,13 @@ private fun Bubble(msg: UiMsg) {
 @Composable
 private fun ApiKeyGate(onSaved: (String) -> Unit) {
     var key by remember { mutableStateOf("") }
-    Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().imePadding().padding(24.dp), verticalArrangement = Arrangement.Center) {
-        Text("Podaj klucz Claude API", color = TextDark, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        Text("Klucz zostaje na Twoim telefonie.", color = Color(0xFF7A857D), fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 12.dp))
+    Column(Modifier.fillMaxSize().background(Palette.Bg).systemBarsPadding().imePadding().padding(24.dp), verticalArrangement = Arrangement.Center) {
+        Text("Podaj klucz Claude API", color = Palette.TextDark, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Text("Klucz zostaje na Twoim telefonie.", color = Palette.Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 12.dp))
         OutlinedTextField(value = key, onValueChange = { key = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("sk-ant-…") })
         Button(
             onClick = { if (key.isNotBlank()) onSaved(key.trim()) },
-            colors = ButtonDefaults.buttonColors(containerColor = Green),
+            colors = ButtonDefaults.buttonColors(containerColor = Palette.Green),
             modifier = Modifier.padding(top = 12.dp)
         ) { Text("Zapisz i zacznij") }
     }

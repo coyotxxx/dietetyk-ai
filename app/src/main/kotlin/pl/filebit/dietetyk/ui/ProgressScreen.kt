@@ -95,6 +95,7 @@ private fun WeightChart(sorted: List<WeightSample>, modifier: Modifier) {
     val minW = sorted.minOf { it.weightKg }
     val maxW = sorted.maxOf { it.weightKg }
     val range = (maxW - minW).takeIf { it > 0.01 } ?: 1.0
+    val greenColor = Palette.Green
     Canvas(modifier) {
         val n = sorted.size
         val dx = if (n > 1) size.width / (n - 1) else 0f
@@ -105,9 +106,9 @@ private fun WeightChart(sorted: List<WeightSample>, modifier: Modifier) {
             val y = yFor(s.weightKg)
             if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
         }
-        drawPath(path, Palette.Green, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 6f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+        drawPath(path, greenColor, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 6f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
         sorted.forEachIndexed { i, s ->
-            drawCircle(Palette.Green, radius = 7f, center = androidx.compose.ui.geometry.Offset(i * dx, yFor(s.weightKg)))
+            drawCircle(greenColor, radius = 7f, center = androidx.compose.ui.geometry.Offset(i * dx, yFor(s.weightKg)))
         }
     }
 }
