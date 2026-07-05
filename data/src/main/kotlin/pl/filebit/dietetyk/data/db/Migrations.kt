@@ -53,4 +53,14 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
     }
 }
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+/** v4→v5: cache przepisów. */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `recipe_cache` (" +
+                "`mealKey` TEXT PRIMARY KEY NOT NULL, `json` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL)"
+        )
+    }
+}
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)

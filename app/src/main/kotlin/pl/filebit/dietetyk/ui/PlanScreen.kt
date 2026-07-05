@@ -3,6 +3,7 @@ package pl.filebit.dietetyk.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,7 +18,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -33,6 +36,68 @@ private data class PlanMeal(
     val name: String, val time: String, val kcal: Int, val ingredients: String,
     val ings: List<Pair<String, Int>>
 )
+
+private val RECIPE_VARIANTS = listOf("Tradycyjnie", "Air Fryer", "Thermomix")
+private val RECIPE_KEYS = listOf("tradycyjnie", "airfryer", "thermomix")
+
+@Composable
+private fun MealCard(app: DietetykApp, index: Int, meal: PlanMeal) {
+    var expanded by remember { mutableStateOf(false) }
+    var recipe by remember { mutableStateOf<List<String>?>(null) }
+    var loading by remember { mutableStateOf(false) }
+    var variant by remember { mutableStateOf(0) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    Column(Modifier.fillMaxWidth().padding(bottom = 10.dp).background(Palette.Card, RoundedCornerShape(16.dp))
+        .clickable {
+            expanded = !expanded
+            if (expanded && recipe == null && !loading) {
+                loading = true; error = null
+                scope.launch {
+                    try {
+                        val json = app.recipeFor(meal.name, meal.ingredients)
+                        val obj = Json.parseToJsonElement(json).jsonObject
+                        recipe = RECIPE_KEYS.map { obj[it]?.jsonPrimitive?.content ?: "—" }
+                    } catch (e: Exception) {
+                        error = "Nie udało się wygenerować przepisu. Spróbuj ponownie."
+                    } finally { loading = false }
+                }
+            }
+        }
+        .padding(14.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+            Column(Modifier.weight(1f).padding(end = 8.dp)) {
+                Text("POSIŁEK ${index + 1}" + (if (meal.time.isNotBlank()) " · ${meal.time}" else ""), color = Palette.Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text(meal.name, color = Palette.TextDark, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 2.dp))
+            }
+            Text("${meal.kcal} kcal", color = Palette.Orange, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
+        }
+        if (meal.ingredients.isNotBlank()) {
+            Text(meal.ingredients, color = Palette.Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
+        }
+        Text(if (expanded) "▲ przepis" else "▼ przepis (3 warianty)", color = Palette.Green, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
+
+        if (expanded) {
+            when {
+                loading -> Text("Generuję przepis…", color = Palette.Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
+                error != null -> Text(error!!, color = Palette.Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
+                recipe != null -> {
+                    Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        RECIPE_VARIANTS.forEachIndexed { vi, label ->
+                            Box(
+                                Modifier.weight(1f).background(if (vi == variant) Palette.Green else Palette.GreenTint, RoundedCornerShape(10.dp))
+                                    .clickable { variant = vi }.padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) { Text(label, color = if (vi == variant) androidx.compose.ui.graphics.Color.White else Palette.GreenDark, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                        }
+                    }
+                    Text(recipe!!.getOrElse(variant) { "—" }, color = Palette.TextDark, fontSize = 14.sp, modifier = Modifier.padding(top = 10.dp))
+                }
+            }
+        }
+    }
+}
 
 @Composable
 fun PlanScreen(app: DietetykApp) {
@@ -78,20 +143,7 @@ fun PlanScreen(app: DietetykApp) {
         Text("${m.size} posiłki • $sum kcal" + (if (targetKcal > 0) " (cel $targetKcal)" else ""),
             color = Palette.Green, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp, bottom = 12.dp))
 
-        m.forEachIndexed { i, meal ->
-            Column(Modifier.fillMaxWidth().padding(bottom = 10.dp).background(Palette.Card, RoundedCornerShape(16.dp)).padding(14.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
-                    Column(Modifier.weight(1f).padding(end = 8.dp)) {
-                        Text("POSIŁEK ${i + 1}" + (if (meal.time.isNotBlank()) " · ${meal.time}" else ""), color = Palette.Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        Text(meal.name, color = Palette.TextDark, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 2.dp))
-                    }
-                    Text("${meal.kcal} kcal", color = Palette.Orange, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
-                }
-                if (meal.ingredients.isNotBlank()) {
-                    Text(meal.ingredients, color = Palette.Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
-                }
-            }
-        }
+        m.forEachIndexed { i, meal -> MealCard(app, i, meal) }
 
         // === Lista zakupów (agregacja składników) ===
         val shopping = m.flatMap { it.ings }
