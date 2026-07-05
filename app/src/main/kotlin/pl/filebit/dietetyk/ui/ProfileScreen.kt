@@ -218,6 +218,38 @@ fun ProfileScreen(app: DietetykApp) {
             Backup.exportShareIntent(ctx, app)?.let { ctx.startActivity(Intent.createChooser(it, "Kopia zapasowa")) }
         }
 
+        var pendingRestoreUri by remember { mutableStateOf<android.net.Uri?>(null) }
+        var restoreError by remember { mutableStateOf<String?>(null) }
+        val restoreLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+        ) { uri -> if (uri != null) pendingRestoreUri = uri }
+        SettingRow("♻️ Przywróć z kopii", "Wybierz plik ›") { restoreLauncher.launch(arrayOf("*/*")) }
+        pendingRestoreUri?.let { uri ->
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { pendingRestoreUri = null },
+                title = { Text("Przywrócić kopię?") },
+                text = { Text("Obecne dane zostaną zastąpione danymi z kopii. Zrobimy kopię bezpieczeństwa, a aplikacja uruchomi się ponownie. Klucz API i ustawienia aplikacji nie są częścią kopii.") },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(onClick = {
+                        val r = Backup.restoreFromUri(ctx, uri)
+                        pendingRestoreUri = null
+                        when (r) {
+                            is Backup.RestoreResult.Success -> Backup.restartApp(ctx)
+                            is Backup.RestoreResult.Error -> restoreError = r.message
+                        }
+                    }) { Text("Przywróć") }
+                },
+                dismissButton = { androidx.compose.material3.TextButton(onClick = { pendingRestoreUri = null }) { Text("Anuluj") } }
+            )
+        }
+        restoreError?.let { msg ->
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { restoreError = null },
+                title = { Text("Nie przywrócono") }, text = { Text(msg) },
+                confirmButton = { androidx.compose.material3.TextButton(onClick = { restoreError = null }) { Text("OK") } }
+            )
+        }
+
         var showClearChat by remember { mutableStateOf(false) }
         SettingRow("🗑️ Wyczyść rozmowę", "Wyczyść ›") { showClearChat = true }
         if (showClearChat) {
