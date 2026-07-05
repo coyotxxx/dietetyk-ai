@@ -135,7 +135,7 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
     ) { success ->
         val uri = photoUri
         if (success && uri != null) {
-            app.pendingChatPhoto = pl.filebit.dietetyk.ImageUtil.toBase64Jpeg(context, uri)
+            app.pendingChatPhoto = pl.filebit.dietetyk.ImageUtil.persistChatImage(context, uri)
             onGoToChat()
         }
     }

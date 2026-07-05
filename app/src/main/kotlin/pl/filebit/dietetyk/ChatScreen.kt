@@ -31,7 +31,9 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -56,7 +58,8 @@ import pl.filebit.dietetyk.ui.Palette
 internal data class UiMsg(
     val fromUser: Boolean, val text: String,
     val actions: List<String> = emptyList(),
-    val cards: List<pl.filebit.dietetyk.ui.CardData> = emptyList()
+    val cards: List<pl.filebit.dietetyk.ui.CardData> = emptyList(),
+    val imageUri: String? = null
 )
 
 private val ACTIONS_RE = Regex("""\[\[\s*akcje\s*:\s*(.+?)\s*]]""", RegexOption.IGNORE_CASE)
@@ -105,13 +108,13 @@ internal class ChatViewModel(private val app: DietetykApp) : ViewModel() {
             else kotlinx.serialization.json.Json.parseToJsonElement(cardsJson).jsonArray.mapNotNull { it as? JsonObject }
                 .map { pl.filebit.dietetyk.ui.CardData(it["type"]?.jsonPrimitive?.content ?: "generic", it) }
         }.getOrDefault(emptyList())
-        return UiMsg(fromUser, text, if (actionsCsv.isBlank()) emptyList() else actionsCsv.split("|"), cards)
+        return UiMsg(fromUser, text, if (actionsCsv.isBlank()) emptyList() else actionsCsv.split("|"), cards, imageUri.takeIf { it.isNotBlank() })
     }
 
     private suspend fun persist(msg: UiMsg) {
         val cardsJson = if (msg.cards.isEmpty()) "" else buildJsonArray { msg.cards.forEach { add(it.json) } }.toString()
         app.database.chatMessageDao().insert(
-            ChatMessageEntity(fromUser = msg.fromUser, text = msg.text, actionsCsv = msg.actions.joinToString("|"), cardsJson = cardsJson, createdAt = System.currentTimeMillis())
+            ChatMessageEntity(fromUser = msg.fromUser, text = msg.text, actionsCsv = msg.actions.joinToString("|"), cardsJson = cardsJson, imageUri = msg.imageUri ?: "", createdAt = System.currentTimeMillis())
         )
     }
 
@@ -129,17 +132,20 @@ internal class ChatViewModel(private val app: DietetykApp) : ViewModel() {
         }
     }
 
-    /** Reset rozmowy w pamięci (bazę/prefs czyści wywołujący). Reseeduje powitanie. */
+    /** Reset rozmowy w pamięci (bazę/prefs czyści wywołujący). Reseeduje powitanie + usuwa zdjęcia. */
     fun resetInMemory() {
         messages.clear(); history.clear()
         messages.add(UiMsg(false, "Cześć! Jestem Twoim dietetykiem. Opowiedz mi o sobie — co chciałbyś osiągnąć?"))
+        pl.filebit.dietetyk.ImageUtil.clearChatImages(app)
     }
 
-    fun sendPhoto(b64: String?, apiKey: String) {
+    /** Wysyła zdjęcie posiłku. [imagePath] = trwały plik w filesDir (miniatura + źródło base64 do API). */
+    fun sendPhoto(imagePath: String?, apiKey: String) {
         if (sending) return
-        val userMsg = UiMsg(true, "📷 Zdjęcie posiłku"); messages.add(userMsg); sending = true
+        val userMsg = UiMsg(true, "📷 Zdjęcie posiłku", imageUri = imagePath); messages.add(userMsg); sending = true
         viewModelScope.launch {
             persist(userMsg)
+            val b64 = imagePath?.let { pl.filebit.dietetyk.ImageUtil.base64FromFile(it) }
             val reply = if (b64 == null) "Nie udało się odczytać zdjęcia — spróbuj jeszcze raz."
             else runCatching {
                 sendToDietitian(app, history, "To zdjęcie mojego posiłku. Rozpoznaj co to, oszacuj kalorie i makro, i zapytaj czy zapisać.", handler, apiKey, imageB64 = b64)
@@ -174,7 +180,7 @@ fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier) {
         androidx.activity.result.contract.ActivityResultContracts.TakePicture()
     ) { success ->
         val uri = photoUri
-        if (success && uri != null) vm.sendPhoto(ImageUtil.toBase64Jpeg(context, uri), apiKey)
+        if (success && uri != null) vm.sendPhoto(ImageUtil.persistChatImage(context, uri), apiKey)
     }
 
     Column(modifier.fillMaxSize().background(Palette.Bg).imePadding().padding(12.dp)) {
@@ -220,6 +226,7 @@ private suspend fun sendToDietitian(
 @Composable
 private fun MessageItem(msg: UiMsg, sending: Boolean, onAction: (String) -> Unit) {
     Column(Modifier.fillMaxWidth()) {
+        msg.imageUri?.let { PhotoThumb(it, msg.fromUser) }
         if (msg.text.isNotBlank()) Bubble(msg)
         msg.cards.forEach { card -> ActionCard(card, onAction) }
         if (!msg.fromUser && msg.actions.isNotEmpty()) {
@@ -234,6 +241,21 @@ private fun MessageItem(msg: UiMsg, sending: Boolean, onAction: (String) -> Unit
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun PhotoThumb(path: String, fromUser: Boolean) {
+    // Dekodowanie raz per ścieżka (inSampleSize chroni przed OOM). Null = plik nie istnieje
+    // (np. po imporcie kopii z innego telefonu) → nie renderuj, tekst „📷 Zdjęcie posiłku" zostaje.
+    val bmp = remember(path) { pl.filebit.dietetyk.ImageUtil.decodeThumb(path) } ?: return
+    Box(Modifier.fillMaxWidth().padding(bottom = 4.dp), contentAlignment = if (fromUser) Alignment.CenterEnd else Alignment.CenterStart) {
+        androidx.compose.foundation.Image(
+            bitmap = bmp.asImageBitmap(),
+            contentDescription = "Zdjęcie posiłku",
+            contentScale = androidx.compose.ui.layout.ContentScale.FillWidth,
+            modifier = Modifier.widthIn(max = 220.dp).clip(RoundedCornerShape(15.dp))
+        )
     }
 }
 

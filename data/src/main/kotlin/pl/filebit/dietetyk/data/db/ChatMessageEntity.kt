@@ -14,6 +14,7 @@ data class ChatMessageEntity(
     val text: String,
     val actionsCsv: String = "",   // [[akcje]] spłaszczone "A|B|C"
     val cardsJson: String = "",    // JSON array surowych kart
+    val imageUri: String = "",     // ścieżka pliku miniatury (filesDir/chat_images) lub puste
     val createdAt: Long
 )
 

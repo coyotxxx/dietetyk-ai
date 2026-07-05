@@ -10,7 +10,7 @@ import java.io.File
 /** Kopia zapasowa — eksport pliku bazy do udostępnienia (Drive/mail/pliki). */
 object Backup {
 
-    const val DB_VERSION = 11
+    const val DB_VERSION = 12
 
     sealed class RestoreResult {
         object Success : RestoreResult()

@@ -33,4 +33,44 @@ object ImageUtil {
             bmp.compress(Bitmap.CompressFormat.JPEG, quality, out)
             Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
         }.getOrNull()
+
+    /** Zapisz zdjęcie (przeskalowane) trwale w filesDir/chat_images i zwróć ścieżkę pliku (do miniatury w czacie). */
+    fun persistChatImage(context: Context, srcUri: Uri, maxDim: Int = 1280, quality: Int = 85): String? =
+        runCatching {
+            val src = context.contentResolver.openInputStream(srcUri).use { BitmapFactory.decodeStream(it) }
+                ?: return null
+            val scale = min(1f, maxDim.toFloat() / max(src.width, src.height))
+            val bmp = if (scale < 1f)
+                Bitmap.createScaledBitmap(src, (src.width * scale).toInt(), (src.height * scale).toInt(), true)
+            else src
+            val dir = File(context.filesDir, "chat_images").apply { mkdirs() }
+            val f = File(dir, "chat_${System.currentTimeMillis()}.jpg")
+            f.outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, quality, it) }
+            f.absolutePath
+        }.getOrNull()
+
+    /** Base64 JPEG z zapisanego pliku (do API). */
+    fun base64FromFile(path: String, quality: Int = 80): String? =
+        runCatching {
+            val bmp = BitmapFactory.decodeFile(path) ?: return null
+            val out = ByteArrayOutputStream()
+            bmp.compress(Bitmap.CompressFormat.JPEG, quality, out)
+            Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+        }.getOrNull()
+
+    /** Zdekoduj miniaturę do wyświetlenia (inSampleSize dopasowany do reqWidth — chroni przed OOM). */
+    fun decodeThumb(path: String, reqWidth: Int = 500): Bitmap? =
+        runCatching {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(path, bounds)
+            if (bounds.outWidth <= 0) return null
+            var sample = 1
+            while (bounds.outWidth / sample > reqWidth) sample *= 2
+            BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inSampleSize = sample })
+        }.getOrNull()
+
+    /** Usuń wszystkie zapisane zdjęcia czatu (przy „Wyczyść rozmowę"). */
+    fun clearChatImages(context: Context) {
+        runCatching { File(context.filesDir, "chat_images").deleteRecursively() }
+    }
 }
