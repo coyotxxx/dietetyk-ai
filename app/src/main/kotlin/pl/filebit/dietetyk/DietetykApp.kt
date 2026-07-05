@@ -1,8 +1,13 @@
 package pl.filebit.dietetyk
 
 import android.app.Application
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import pl.filebit.dietetyk.data.context.DietitianContextBuilder
 import pl.filebit.dietetyk.data.db.AppDatabase
+import pl.filebit.dietetyk.data.db.FoodProductSeed
 import pl.filebit.dietetyk.data.repository.ProfileRepository
 import pl.filebit.dietetyk.data.repository.WeightRepository
 
@@ -19,5 +24,16 @@ class DietetykApp : Application() {
 
     val contextBuilder: DietitianContextBuilder by lazy {
         DietitianContextBuilder(profileRepo, weightRepo, database.energyLogDao(), database.aiMemoryDao())
+    }
+
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    override fun onCreate() {
+        super.onCreate()
+        // Zaseeduj bazę produktów przy pierwszym uruchomieniu (idempotentne).
+        appScope.launch {
+            val dao = database.foodProductDao()
+            if (dao.count() == 0) dao.insertAll(FoodProductSeed.all)
+        }
     }
 }

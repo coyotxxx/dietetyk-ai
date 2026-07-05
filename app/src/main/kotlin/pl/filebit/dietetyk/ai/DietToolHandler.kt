@@ -6,6 +6,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import pl.filebit.dietetyk.DietetykApp
+import pl.filebit.dietetyk.data.db.FoodProductSeed
 import pl.filebit.dietetyk.data.db.PlanEntity
 import pl.filebit.dietetyk.core.adapt.CheckInEngine
 import pl.filebit.dietetyk.core.calc.GoalPipeline
@@ -41,6 +42,7 @@ class DietToolHandler(
             "get_history" -> history(now)
             "run_checkin" -> runCheckin(now)
             "save_diet_plan" -> saveDietPlan(input, now)
+            "search_products" -> searchProducts(input)
             else -> ToolResult("Narzędzie '$name' będzie dostępne wkrótce.")
         }
     }
@@ -92,6 +94,17 @@ class DietToolHandler(
         val ctx = app.contextBuilder.build(now) ?: return ToolResult("Brak profilu — jesteśmy na etapie wywiadu.")
         val trend = if (ctx.weightTrend.hasEnoughData) "trend ${ctx.weightTrend.direction}" else "za mało pomiarów wagi"
         return ToolResult("Waga: ${ctx.latestWeightKg ?: "?"} kg, $trend. Trzymanie planu 14d: kcal ${ctx.adherence14d.avgKcalPct}%. Dni pełnych logów: ${ctx.completeLogDays14d}.")
+    }
+
+    private suspend fun searchProducts(input: JsonObject): ToolResult {
+        val query = input.string("query")?.takeIf { it.isNotBlank() }
+            ?: return ToolResult("Podaj nazwę produktu (query).", isError = true)
+        val hits = app.database.foodProductDao().search(FoodProductSeed.normalize(query))
+        if (hits.isEmpty()) return ToolResult("Brak w bazie produktu: $query. Wartości oszacuj ostrożnie lub dodaj przez add_missing_product.")
+        val lines = hits.joinToString("\n") { p ->
+            "• ${p.name} (na 100g surowego): ${p.kcal} kcal, B ${p.proteinG}g, W ${p.carbsG}g, T ${p.fatG}g"
+        }
+        return ToolResult("Produkty w bazie (surowe, na 100g):\n$lines")
     }
 
     private suspend fun saveDietPlan(input: JsonObject, now: Long): ToolResult {
