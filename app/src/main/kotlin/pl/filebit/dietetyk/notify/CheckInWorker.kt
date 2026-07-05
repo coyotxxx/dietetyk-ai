@@ -15,6 +15,7 @@ class CheckInWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ct
 
     override suspend fun doWork(): Result {
         val app = applicationContext as DietetykApp
+        if (!app.settings.notificationsEnabled) return Result.success()
         // Bez profilu nie ma o czym przypominać.
         app.profileRepo.get() ?: return Result.success()
 

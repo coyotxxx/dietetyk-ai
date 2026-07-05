@@ -29,6 +29,11 @@ class SettingsStore(context: Context) {
         get() = prefs.getString("user_name", "").orEmpty()
         set(v) { prefs.edit().putString("user_name", v).apply() }
 
+    /** Czy proaktywne powiadomienia (wizyty kontrolne) są włączone. */
+    var notificationsEnabled: Boolean
+        get() = prefs.getBoolean("notifications_enabled", true)
+        set(v) { prefs.edit().putBoolean("notifications_enabled", v).apply() }
+
     /** Zjedzone posiłki danego dnia (po nazwie) — status na Dziś. */
     fun eatenMeals(dayKey: String): Set<String> = prefs.getStringSet("eaten_$dayKey", emptySet()) ?: emptySet()
     fun markMealEaten(dayKey: String, name: String) {

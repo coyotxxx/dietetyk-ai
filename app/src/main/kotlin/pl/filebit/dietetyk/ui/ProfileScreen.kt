@@ -24,8 +24,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 import pl.filebit.dietetyk.Backup
+import pl.filebit.dietetyk.BuildConfig
 import pl.filebit.dietetyk.DietetykApp
+import pl.filebit.dietetyk.update.ApkInstaller
+import pl.filebit.dietetyk.update.UpdateChecker
 import pl.filebit.dietetyk.core.model.DietGoalType
 import pl.filebit.dietetyk.core.model.Gender
 import pl.filebit.dietetyk.core.model.NutritionProfile
@@ -35,6 +39,33 @@ fun ProfileScreen(app: DietetykApp) {
     var profile by remember { mutableStateOf<NutritionProfile?>(null) }
     var loaded by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { profile = app.profileRepo.get(); loaded = true }
+
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var notifOn by remember { mutableStateOf(app.settings.notificationsEnabled) }
+    var updateStatus by remember { mutableStateOf("") }
+    var showKeyDialog by remember { mutableStateOf(false) }
+
+    if (showKeyDialog) {
+        var keyText by remember { mutableStateOf("") }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showKeyDialog = false },
+            title = { Text("Klucz Claude API") },
+            text = {
+                androidx.compose.material3.OutlinedTextField(
+                    value = keyText, onValueChange = { keyText = it },
+                    placeholder = { Text("sk-ant-…") }, modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    if (keyText.isNotBlank()) app.settings.apiKey = keyText.trim()
+                    showKeyDialog = false
+                }) { Text("Zapisz") }
+            },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { showKeyDialog = false }) { Text("Anuluj") } }
+        )
+    }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
         Text("Profil", color = Palette.TextDark, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
@@ -66,17 +97,38 @@ fun ProfileScreen(app: DietetykApp) {
         InfoRow("Tempo", "${p.paceKgPerWeek} kg/tydz")
 
         Text("Ustawienia", color = Palette.TextDark, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 20.dp, bottom = 4.dp))
-        val ctx = androidx.compose.ui.platform.LocalContext.current
-        Row(
-            Modifier.fillMaxWidth().padding(top = 8.dp).background(Palette.Card, RoundedCornerShape(12.dp))
-                .clickable {
-                    Backup.exportShareIntent(ctx, app)?.let { ctx.startActivity(Intent.createChooser(it, "Kopia zapasowa")) }
-                }.padding(14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("💾 Kopia zapasowa", color = Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            Text("Udostępnij ›", color = Palette.Green, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+
+        SettingRow("🔔 Powiadomienia (wizyty)", if (notifOn) "Włączone" else "Wyłączone") {
+            notifOn = !notifOn; app.settings.notificationsEnabled = notifOn
         }
+        SettingRow("⬆️ Sprawdź aktualizacje", updateStatus.ifBlank { "wersja ${BuildConfig.VERSION_NAME}" }) {
+            updateStatus = "Sprawdzam…"
+            scope.launch {
+                val u = UpdateChecker.latest(BuildConfig.VERSION_NAME)
+                if (u == null) updateStatus = "Masz najnowszą (${BuildConfig.VERSION_NAME})"
+                else {
+                    updateStatus = "Pobieram ${u.version}…"
+                    ApkInstaller.downloadAndInstall(ctx, u.apkUrl)
+                    updateStatus = "Dostępna ${u.version}"
+                }
+            }
+        }
+        SettingRow("🔑 Klucz Claude API", "Zmień ›") { showKeyDialog = true }
+        SettingRow("💾 Kopia zapasowa", "Udostępnij ›") {
+            Backup.exportShareIntent(ctx, app)?.let { ctx.startActivity(Intent.createChooser(it, "Kopia zapasowa")) }
+        }
+    }
+}
+
+@Composable
+private fun SettingRow(label: String, value: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(top = 8.dp).background(Palette.Card, RoundedCornerShape(12.dp))
+            .clickable { onClick() }.padding(14.dp),
+        horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, color = Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        Text(value, color = Palette.Green, fontSize = 13.sp, fontWeight = FontWeight.Bold)
     }
 }
 
