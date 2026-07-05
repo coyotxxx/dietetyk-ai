@@ -51,10 +51,10 @@ object AiToolCatalog {
             readsData = true, emitsNumbers = true
         ),
         AiToolSpec(
-            "save_diet_plan", "Zapisz plan dnia. Suma kcal posiłków powinna być bliska celowi (calculate_targets).",
+            "save_diet_plan", "Zapisz plan dnia. Składniki podaj STRUKTURALNIE (produkt+gramatura surowa) — silnik SAM przelicza kcal/makro z bazy produktów i sprawdza zgodność z celem. Używaj nazw produktów z bazy (search_products).",
             listOf(
                 AiToolParam("meals", "array", true,
-                    "tablica posiłków; każdy: {\"name\":\"Owsianka z malinami\",\"timeHint\":\"7:30\",\"kcal\":550,\"proteinG\":30,\"carbsG\":70,\"fatG\":12,\"ingredients\":\"płatki 60g, mleko 200ml, maliny 100g\"}")
+                    "tablica posiłków; każdy: {\"name\":\"Owsianka z malinami\",\"timeHint\":\"7:30\",\"prepMinutes\":10,\"ingredients\":[{\"productName\":\"Płatki owsiane\",\"grams\":60},{\"productName\":\"Mleko 2%\",\"grams\":200},{\"productName\":\"Maliny\",\"grams\":100}]}")
             ),
             mutating = true, emitsNumbers = true
         ),

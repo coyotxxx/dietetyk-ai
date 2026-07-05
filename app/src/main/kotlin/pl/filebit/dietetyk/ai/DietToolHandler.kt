@@ -1,6 +1,8 @@
 package pl.filebit.dietetyk.ai
 
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -11,6 +13,12 @@ import pl.filebit.dietetyk.data.db.FoodProductSeed
 import pl.filebit.dietetyk.data.db.PlanEntity
 import pl.filebit.dietetyk.core.adapt.CheckInEngine
 import pl.filebit.dietetyk.core.calc.GoalPipeline
+import pl.filebit.dietetyk.core.model.AiDayPlan
+import pl.filebit.dietetyk.core.model.AiMealRecipe
+import pl.filebit.dietetyk.core.model.AiRecipeIngredient
+import pl.filebit.dietetyk.core.model.FoodProductModel
+import pl.filebit.dietetyk.core.plan.PlanValidator
+import pl.filebit.dietetyk.core.plan.ValidationContext
 import pl.filebit.dietetyk.core.model.ActivityLevel
 import pl.filebit.dietetyk.core.model.ClinicalContext
 import pl.filebit.dietetyk.core.model.DietGoalType
@@ -130,19 +138,75 @@ class DietToolHandler(
     }
 
     private suspend fun saveDietPlan(input: JsonObject, now: Long): ToolResult {
-        val meals = input["meals"]?.let { it as? kotlinx.serialization.json.JsonArray }
-            ?: return ToolResult("Brak posiłków w planie.", isError = true)
-        if (meals.isEmpty()) return ToolResult("Plan jest pusty.", isError = true)
-        val sumKcal = meals.sumOf { (it as JsonObject).int("kcal") ?: 0 }
-        val target = app.profileRepo.get()?.let { p ->
-            GoalPipeline.compute(p, latestMeasuredWeightKg = app.weightRepo.latest()?.weightKg).kcal
-        } ?: sumKcal
-        // Lekka walidacja: suma dnia w granicach ±15% celu (pełna walidacja z bazą produktów — później).
-        val dev = if (target > 0) kotlin.math.abs(sumKcal - target) * 100 / target else 0
-        val planJson = kotlinx.serialization.json.buildJsonObject { put("meals", meals) }.toString()
-        app.database.planDao().upsert(PlanEntity(planJson = planJson, targetKcal = target, updatedAt = now, dirty = true))
-        val warn = if (dev > 15) " (uwaga: suma odbiega od celu o $dev% — rozważ korektę gramatur)" else ""
-        return ToolResult("Zapisałem plan: ${meals.size} posiłków, razem $sumKcal kcal (cel $target)$warn.")
+        val mealsArr = input["meals"]?.let { it as? JsonArray }
+            ?: return ToolResult("Brak posiłków (meals).", isError = true)
+        if (mealsArr.isEmpty()) return ToolResult("Plan jest pusty.", isError = true)
+
+        val goal = app.profileRepo.get()?.let {
+            GoalPipeline.compute(it, latestMeasuredWeightKg = app.weightRepo.latest()?.weightKg)
+        } ?: return ToolResult("Brak profilu/celu — najpierw calculate_targets.", isError = true)
+
+        // Parsuj posiłki ze strukturalnymi składnikami
+        data class ParsedMeal(val name: String, val time: String, val recipe: AiMealRecipe)
+        val parsed = mealsArr.mapNotNull { it as? JsonObject }.map { mo ->
+            val name = mo.string("name") ?: "Posiłek"
+            val ings = (mo["ingredients"] as? JsonArray)?.mapNotNull { it as? JsonObject }?.map { io ->
+                AiRecipeIngredient(io.string("productName") ?: "", io.int("grams") ?: 0)
+            } ?: emptyList()
+            ParsedMeal(name, mo.string("timeHint") ?: "", AiMealRecipe(name, 0, mo.int("prepMinutes") ?: 0, ings))
+        }
+        val plan = AiDayPlan(parsed.map { it.recipe })
+
+        // Baza produktów → model do walidatora
+        val byName = app.database.foodProductDao().all().associate { e ->
+            e.name.lowercase() to FoodProductModel(
+                id = e.id, name = e.name, kcalPer100g = e.kcal,
+                proteinPer100g = e.proteinG, carbsPer100g = e.carbsG, fatPer100g = e.fatG
+            )
+        }
+
+        val ctx = ValidationContext(
+            expectedMealsCount = plan.meals.size,
+            targetKcal = goal.kcal, targetProteinG = goal.proteinG,
+            targetCarbsG = goal.carbsG, targetFatG = goal.fatG,
+            perMealProteinMinG = 0, maxCookingMinutesPerMeal = 240,
+            productsByName = byName
+        )
+        val result = PlanValidator.validate(plan, ctx)
+        if (!result.isValid) {
+            // Guardrail: silnik odrzuca plan → AI dostaje feedback i poprawia gramatury.
+            return ToolResult(PlanValidator.buildRetryFeedback(result), isError = true)
+        }
+
+        // Per-posiłek przeliczone z bazy (do wyświetlenia na Dziś/Plan)
+        val mealsJson = buildJsonArray {
+            parsed.forEach { pm ->
+                var k = 0.0; var pr = 0.0; var c = 0.0; var f = 0.0
+                pm.recipe.ingredients.forEach { ing ->
+                    resolve(ing.productName, byName)?.let { p ->
+                        val fac = ing.grams / 100.0
+                        k += p.kcalPer100g * fac; pr += p.proteinPer100g * fac; c += p.carbsPer100g * fac; f += p.fatPer100g * fac
+                    }
+                }
+                add(buildJsonObject {
+                    put("name", pm.name); put("timeHint", pm.time)
+                    put("kcal", k.toInt()); put("proteinG", pr.toInt()); put("carbsG", c.toInt()); put("fatG", f.toInt())
+                    put("ingredients", pm.recipe.ingredients.joinToString(", ") { "${it.productName} ${it.grams}g" })
+                })
+            }
+        }
+        val planJson = buildJsonObject { put("meals", mealsJson) }.toString()
+        app.database.planDao().upsert(PlanEntity(planJson = planJson, targetKcal = goal.kcal, updatedAt = now, dirty = true))
+
+        val ct = result.correctedTotal
+        val warn = if (result.warnings.isNotEmpty()) " Uwagi: " + result.warnings.take(3).joinToString("; ") { it.message } else ""
+        return ToolResult("Zapisałem plan (przeliczony z bazy): ${plan.meals.size} posiłków, ${ct.totalKcal} kcal — B ${ct.totalProteinG}g / W ${ct.totalCarbsG}g / T ${ct.totalFatG}g (cel ${goal.kcal} kcal).$warn")
+    }
+
+    /** Dopasowanie nazwy do produktu bazy: exact → substring (spójne z PlanValidator). */
+    private fun resolve(name: String, byName: Map<String, FoodProductModel>): FoodProductModel? {
+        val key = name.trim().lowercase()
+        return byName[key] ?: byName.entries.firstOrNull { (k, _) -> k.contains(key) || key.contains(k) }?.value
     }
 
     private suspend fun runCheckin(now: Long): ToolResult {

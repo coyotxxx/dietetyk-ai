@@ -32,6 +32,9 @@ interface FoodProductDao {
     @Query("SELECT * FROM food_products WHERE nameNorm LIKE '%' || :q || '%' ORDER BY length(nameNorm) LIMIT :limit")
     suspend fun search(q: String, limit: Int = 12): List<FoodProductEntity>
 
+    @Query("SELECT * FROM food_products")
+    suspend fun all(): List<FoodProductEntity>
+
     @Insert
     suspend fun insertAll(items: List<FoodProductEntity>)
 }
