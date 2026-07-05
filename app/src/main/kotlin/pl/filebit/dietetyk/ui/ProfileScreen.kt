@@ -1,6 +1,8 @@
 package pl.filebit.dietetyk.ui
 
+import android.content.Intent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import pl.filebit.dietetyk.Backup
 import pl.filebit.dietetyk.DietetykApp
 import pl.filebit.dietetyk.core.model.DietGoalType
 import pl.filebit.dietetyk.core.model.Gender
@@ -61,6 +64,19 @@ fun ProfileScreen(app: DietetykApp) {
         InfoRow("Treningi/tydzień", "${p.daysPerWeek}")
         InfoRow("Cel", goalLabel(p.goal))
         InfoRow("Tempo", "${p.paceKgPerWeek} kg/tydz")
+
+        Text("Ustawienia", color = Palette.TextDark, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 20.dp, bottom = 4.dp))
+        val ctx = androidx.compose.ui.platform.LocalContext.current
+        Row(
+            Modifier.fillMaxWidth().padding(top = 8.dp).background(Palette.Card, RoundedCornerShape(12.dp))
+                .clickable {
+                    Backup.exportShareIntent(ctx, app)?.let { ctx.startActivity(Intent.createChooser(it, "Kopia zapasowa")) }
+                }.padding(14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("💾 Kopia zapasowa", color = Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text("Udostępnij ›", color = Palette.Green, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        }
     }
 }
 
