@@ -35,17 +35,19 @@ import kotlinx.coroutines.launch
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun ProgressScreen(app: DietetykApp) {
+fun ProgressScreen(app: DietetykApp, onGoToChat: () -> Unit = {}) {
     var samples by remember { mutableStateOf<List<WeightSample>>(emptyList()) }
     var loaded by remember { mutableStateOf(false) }
     var reloadKey by remember { mutableStateOf(0) }
     var showSheet by remember { mutableStateOf(false) }
     var range by remember { mutableStateOf(30) }
     var profile by remember { mutableStateOf<pl.filebit.dietetyk.core.model.NutritionProfile?>(null) }
+    var visits by remember { mutableStateOf<List<pl.filebit.dietetyk.data.db.VisitEntity>>(emptyList()) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     LaunchedEffect(reloadKey) {
         samples = app.weightRepo.since(System.currentTimeMillis() - 365L * 24 * 3600 * 1000)
         profile = app.profileRepo.get()
+        visits = app.database.visitDao().all()
         loaded = true
     }
 
@@ -148,6 +150,40 @@ fun ProgressScreen(app: DietetykApp) {
             Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(goalW?.let { "Cel ${kgP(it)} kg" } ?: "Cel: nie ustawiony", color = Palette.Muted, fontSize = 12.sp)
                 Text(eta?.let { "ok. $it tyg. do celu" } ?: "", color = Palette.Green, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        // Karta najbliższej wizyty kontrolnej (ciemna)
+        val white = androidx.compose.ui.graphics.Color.White
+        val nextVisitMs = (visits.firstOrNull()?.dateMs ?: now) + 7L * 24 * 3600 * 1000
+        Column(Modifier.fillMaxWidth().padding(top = 20.dp).background(Palette.GreenDark, RoundedCornerShape(18.dp)).padding(18.dp)) {
+            Text("NAJBLIŻSZA WIZYTA KONTROLNA", color = white.copy(alpha = 0.7f), fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
+            Text(
+                if (nextVisitMs <= now) "Termin już minął — czas na wizytę" else "za ${((nextVisitMs - now) / (24 * 3600 * 1000)).toInt() + 1} dni · ${dayLabel(nextVisitMs)}",
+                color = white, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp)
+            )
+            Box(
+                Modifier.padding(top = 12.dp).background(Palette.Green, RoundedCornerShape(12.dp))
+                    .clickable { runCatching { app.triggerCheckInNow() }; onGoToChat() }.padding(horizontal = 18.dp, vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) { Text("Zacznij wizytę", color = white, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
+        }
+
+        // Historia wizyt kontrolnych
+        if (visits.isNotEmpty()) {
+            Text("Wizyty kontrolne", color = Palette.TextDark, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 20.dp, bottom = 8.dp))
+            visits.forEachIndexed { i, v ->
+                Column(Modifier.fillMaxWidth().padding(bottom = 8.dp).background(Palette.Card, RoundedCornerShape(14.dp)).padding(14.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("Wizyta kontrolna #${visits.size - i}", color = Palette.TextDark, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Text(dayLabel(v.dateMs), color = Palette.Muted, fontSize = 12.sp)
+                    }
+                    Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        v.deltaKg?.let { Text((if (it < 0) "↓ " else "↑ ") + kgP(kotlin.math.abs(it)) + " kg", color = if (it < 0) Palette.Green else Palette.Orange, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                        v.adherencePct?.let { Text("Trzymanie $it%", color = Palette.Muted, fontSize = 12.sp) }
+                    }
+                    Text(v.decisionText, color = Palette.Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
+                }
             }
         }
 

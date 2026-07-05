@@ -66,7 +66,7 @@ fun AppScaffold(app: DietetykApp) {
                 Tab.DZIS -> TodayScreen(app, onBell = { showNotifs = true }, onGoToChat = { tab = Tab.DIETETYK })
                 Tab.PLAN -> PlanScreen(app)
                 Tab.DIETETYK -> ChatScreen(app, Modifier.fillMaxSize())
-                Tab.POSTEPY -> ProgressScreen(app)
+                Tab.POSTEPY -> ProgressScreen(app, onGoToChat = { tab = Tab.DIETETYK })
                 Tab.PROFIL -> ProfileScreen(app)
             }
         }

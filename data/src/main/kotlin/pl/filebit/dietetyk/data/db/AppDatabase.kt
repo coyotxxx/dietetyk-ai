@@ -13,8 +13,8 @@ import androidx.room.TypeConverters
  * `Migration(N, N+1)` z ALTER TABLE, NIGDY `fallbackToDestructiveMigration`. Zero utraty danych usera.
  */
 @Database(
-    entities = [ProfileEntity::class, WeightEntity::class, EnergyLogEntity::class, AiMemoryEntity::class, PlanEntity::class, FoodProductEntity::class, RecipeEntity::class, NotificationEntity::class, ChatMessageEntity::class],
-    version = 9,
+    entities = [ProfileEntity::class, WeightEntity::class, EnergyLogEntity::class, AiMemoryEntity::class, PlanEntity::class, FoodProductEntity::class, RecipeEntity::class, NotificationEntity::class, ChatMessageEntity::class, VisitEntity::class],
+    version = 10,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -28,6 +28,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun recipeDao(): RecipeDao
     abstract fun notificationDao(): NotificationDao
     abstract fun chatMessageDao(): ChatMessageDao
+    abstract fun visitDao(): VisitDao
 
     companion object {
         fun build(context: Context): AppDatabase =
