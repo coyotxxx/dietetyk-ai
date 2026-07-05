@@ -49,18 +49,17 @@ class DietToolHandler(
     }
 
     private suspend fun logMeasurement(input: JsonObject, now: Long): ToolResult {
-        val obj = input["measurement"]?.jsonObject ?: input
-        val weight = obj.double("weightKg") ?: obj.double("waga")
+        val weight = input.double("weightKg") ?: input.double("waga")
             ?: return ToolResult("Podaj wagę (weightKg).", isError = true)
         app.weightRepo.add(WeightSample(dateMs = now, weightKg = weight), now)
         return ToolResult("Zapisałem wagę: $weight kg.")
     }
 
     private suspend fun logMeal(input: JsonObject, now: Long): ToolResult {
-        val obj = input["meal"]?.jsonObject ?: input
-        val kcal = obj.int("kcal") ?: return ToolResult("Podaj kcal posiłku.", isError = true)
+        val kcal = input.int("kcal") ?: return ToolResult("Podaj kcal posiłku.", isError = true)
         app.database.energyLogDao().insert(EnergyLogEntity(dateMs = now, kcalConsumed = kcal, isComplete = false))
-        return ToolResult("Zapisałem posiłek: $kcal kcal.")
+        val name = input.string("name")?.let { " ($it)" } ?: ""
+        return ToolResult("Zapisałem posiłek$name: $kcal kcal.")
     }
 
     private suspend fun saveVisitNote(input: JsonObject, now: Long): ToolResult {
@@ -70,7 +69,7 @@ class DietToolHandler(
     }
 
     private suspend fun saveProfile(input: JsonObject, now: Long): ToolResult {
-        val p = input["profile"]?.jsonObject ?: input
+        val p = input["profile"]?.jsonObject ?: input   // wspiera płaskie pola i zagnieżdżone
         val profile = NutritionProfile(
             gender = enumOr(p.string("gender"), Gender.MALE),
             ageYears = p.int("ageYears") ?: p.int("wiek") ?: 30,

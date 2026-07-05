@@ -39,12 +39,16 @@ class ClaudeToolMapperTest {
 
     @Test
     fun `typy semantyczne mapuja sie na JSON Schema`() {
-        // log_meal ma param 'meal' typu object; calculate_targets nie ma paramów
+        // save_profile: heightCm→integer, weightKg→number; log_meal: kcal→integer
+        val saveProfile = ClaudeToolMapper.toolsJson().first {
+            it.jsonObject["name"]!!.jsonPrimitive.content == "save_profile"
+        }.jsonObject["input_schema"]!!.jsonObject["properties"]!!.jsonObject
+        assertEquals("integer", saveProfile["heightCm"]!!.jsonObject["type"]!!.jsonPrimitive.content)
+        assertEquals("number", saveProfile["weightKg"]!!.jsonObject["type"]!!.jsonPrimitive.content)
+
         val logMeal = ClaudeToolMapper.toolsJson().first {
             it.jsonObject["name"]!!.jsonPrimitive.content == "log_meal"
-        }.jsonObject
-        val mealType = logMeal["input_schema"]!!.jsonObject["properties"]!!.jsonObject["meal"]!!
-            .jsonObject["type"]!!.jsonPrimitive.content
-        assertEquals("object", mealType)
+        }.jsonObject["input_schema"]!!.jsonObject["properties"]!!.jsonObject
+        assertEquals("integer", logMeal["kcal"]!!.jsonObject["type"]!!.jsonPrimitive.content)
     }
 }

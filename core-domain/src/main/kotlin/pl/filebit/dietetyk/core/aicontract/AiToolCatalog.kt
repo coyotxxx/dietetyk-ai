@@ -33,8 +33,17 @@ object AiToolCatalog {
 
     val all: List<AiToolSpec> = listOf(
         AiToolSpec(
-            "save_profile", "Zapisz/zaktualizuj profil po wywiadzie (wiek, płeć, wzrost, aktywność, cel, zdrowie, preferencje, sprzęt).",
-            listOf(AiToolParam("profile", "object", true, "ustrukturyzowany profil zebrany w rozmowie")),
+            "save_profile", "Zapisz/zaktualizuj profil po zebraniu danych w wywiadzie. Podaj tyle pól, ile znasz.",
+            listOf(
+                AiToolParam("gender", "enum", true, "płeć: MALE lub FEMALE"),
+                AiToolParam("ageYears", "int", true, "wiek w latach"),
+                AiToolParam("heightCm", "int", true, "wzrost w cm"),
+                AiToolParam("weightKg", "double", false, "aktualna waga w kg"),
+                AiToolParam("activityLevel", "enum", false, "aktywność: SEDENTARY (siedzący), LIGHT (lekko aktywny), MODERATE (3-5 treningów), VERY_ACTIVE (6-7 treningów), EXTREME (zawodowo)"),
+                AiToolParam("daysPerWeek", "int", false, "liczba treningów/tydzień"),
+                AiToolParam("goal", "enum", true, "cel: FAT_LOSS (redukcja), MUSCLE_GAIN (masa), RECOMP (rekompozycja), MAINTAIN (utrzymanie), STRENGTH (siła), ENDURANCE (wydolność), HEALTH (zdrowie), EVENT_PREP (na termin)"),
+                AiToolParam("paceKgPerWeek", "double", false, "docelowe tempo zmiany masy w kg/tydzień, wartość dodatnia (np. 0.5)")
+            ),
             mutating = true
         ),
         AiToolSpec(
@@ -47,12 +56,21 @@ object AiToolCatalog {
             mutating = true, emitsNumbers = true
         ),
         AiToolSpec(
-            "log_meal", "Zapisz zjedzony posiłek (z tekstu, zdjęcia, kodu kreskowego albo wybór z planu).",
-            listOf(AiToolParam("meal", "object", true, "opis/pozycje posiłku")), mutating = true, emitsNumbers = true
+            "log_meal", "Zapisz zjedzony posiłek. Podaj szacowane kcal (policz je sam z produktów przez search_products jeśli trzeba).",
+            listOf(
+                AiToolParam("kcal", "int", true, "kalorie posiłku"),
+                AiToolParam("name", "string", false, "krótki opis posiłku")
+            ),
+            mutating = true, emitsNumbers = true
         ),
         AiToolSpec(
-            "log_measurement", "Zapisz pomiar (waga, obwody, tkanka) — także ze zdjęcia wyświetlacza wagi/badań.",
-            listOf(AiToolParam("measurement", "object", true, "waga i/lub obwody i/lub % tkanki")), mutating = true
+            "log_measurement", "Zapisz pomiar ciała (waga i/lub obwody) — także odczytany ze zdjęcia wagi.",
+            listOf(
+                AiToolParam("weightKg", "double", true, "waga w kg"),
+                AiToolParam("waistCm", "double", false, "obwód talii w cm"),
+                AiToolParam("neckCm", "double", false, "obwód karku w cm")
+            ),
+            mutating = true
         ),
         AiToolSpec(
             "get_history", "Pobierz historię: logi posiłków, pomiary, trend wagi, poprzednie wizyty, pamięć epizodyczną.",
