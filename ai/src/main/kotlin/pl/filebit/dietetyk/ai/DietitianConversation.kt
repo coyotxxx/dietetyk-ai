@@ -23,9 +23,11 @@ class DietitianConversation(
         userMessage: String,
         handler: ToolHandler,
         model: String = ClaudeConfig.MODEL_CHAT,
-        maxTokens: Int = ClaudeConfig.DEFAULT_MAX_TOKENS
+        maxTokens: Int = ClaudeConfig.DEFAULT_MAX_TOKENS,
+        imageB64: String? = null
     ): String {
-        history += ClaudeMessages.userText(userMessage)
+        history += if (imageB64 != null) ClaudeMessages.userContent(userMessage, imageB64)
+                   else ClaudeMessages.userText(userMessage)
 
         var rounds = 0
         while (true) {

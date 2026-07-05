@@ -1,6 +1,7 @@
 package pl.filebit.dietetyk
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -53,6 +54,7 @@ fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier) {
     }
 
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
     val messages = remember {
         listOf(UiMsg(false, "Cześć! Jestem Twoim dietetykiem. Opowiedz mi o sobie — co chciałbyś osiągnąć?")).toMutableStateList()
     }
@@ -60,6 +62,30 @@ fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier) {
     val handler = remember { DietToolHandler(app) }
     var input by remember { mutableStateOf("") }
     var sending by remember { mutableStateOf(false) }
+    var photoUri by remember { mutableStateOf<android.net.Uri?>(null) }
+
+    val cameraLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.TakePicture()
+    ) { success ->
+        val uri = photoUri
+        if (success && uri != null && !sending) {
+            messages.add(UiMsg(true, "📷 Zdjęcie posiłku"))
+            sending = true
+            scope.launch {
+                val b64 = ImageUtil.toBase64Jpeg(context, uri)
+                val reply = if (b64 == null) "Nie udało się odczytać zdjęcia — spróbuj jeszcze raz."
+                else runCatching {
+                    sendToDietitian(
+                        app, history,
+                        "To zdjęcie mojego posiłku. Rozpoznaj co to, oszacuj kalorie i makro, i zapytaj czy zapisać.",
+                        handler, apiKey, imageB64 = b64
+                    )
+                }.getOrElse { "Coś poszło nie tak przy analizie zdjęcia: ${it.message}" }
+                messages.add(UiMsg(false, reply))
+                sending = false
+            }
+        }
+    }
 
     Column(modifier.fillMaxSize().background(Palette.Bg).imePadding().padding(12.dp)) {
         Text("Dietetyk AI", color = Palette.TextDark, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
@@ -68,6 +94,15 @@ fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier) {
             if (sending) item { Text("Dietetyk pisze…", color = Palette.Green, fontSize = 13.sp) }
         }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.padding(end = 6.dp).background(Palette.GreenTint, RoundedCornerShape(14.dp))
+                    .clickable(enabled = !sending) {
+                        val uri = ImageUtil.newPhotoUri(context)
+                        photoUri = uri
+                        cameraLauncher.launch(uri)
+                    }.padding(12.dp),
+                contentAlignment = Alignment.Center
+            ) { Text("📷", fontSize = 20.sp) }
             OutlinedTextField(
                 value = input, onValueChange = { input = it },
                 modifier = Modifier.weight(1f), placeholder = { Text("Napisz do dietetyka…") }, enabled = !sending
@@ -95,13 +130,13 @@ fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier) {
 
 private suspend fun sendToDietitian(
     app: DietetykApp, history: MutableList<JsonObject>, userText: String,
-    handler: DietToolHandler, apiKey: String
+    handler: DietToolHandler, apiKey: String, imageB64: String? = null
 ): String {
     val ctx = app.contextBuilder.build(System.currentTimeMillis())
     val contextText = ctx?.let { DietitianPrompt.renderContext(it) }
         ?: DietitianPrompt.renderCareGuidance(CareState(CareStage.INTERVIEW, InterviewTopic.entries.toList()))
     val system = DietitianPrompt.systemPrompt() + "\n\n" + contextText
-    return DietitianConversation(ClaudeHttpApi(apiKey)).send(system, history, userText, handler)
+    return DietitianConversation(ClaudeHttpApi(apiKey)).send(system, history, userText, handler, imageB64 = imageB64)
 }
 
 @Composable

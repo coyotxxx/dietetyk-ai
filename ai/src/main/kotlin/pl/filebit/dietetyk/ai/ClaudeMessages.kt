@@ -37,6 +37,24 @@ object ClaudeMessages {
         put("content", buildJsonArray { add(buildJsonObject { put("type", "text"); put("text", text) }) })
     }
 
+    /** Wiadomość user z tekstem + opcjonalnym obrazem (base64 JPEG) — Claude vision. */
+    fun userContent(text: String, imageB64: String?): JsonObject = buildJsonObject {
+        put("role", "user")
+        put("content", buildJsonArray {
+            if (!imageB64.isNullOrBlank()) {
+                add(buildJsonObject {
+                    put("type", "image")
+                    put("source", buildJsonObject {
+                        put("type", "base64")
+                        put("media_type", "image/jpeg")
+                        put("data", imageB64)
+                    })
+                })
+            }
+            add(buildJsonObject { put("type", "text"); put("text", text) })
+        })
+    }
+
     /** Wiadomość user z wynikami narzędzi (po turze tool_use asystenta). */
     fun toolResults(results: List<Pair<ToolUse, ToolResult>>): JsonObject = buildJsonObject {
         put("role", "user")
