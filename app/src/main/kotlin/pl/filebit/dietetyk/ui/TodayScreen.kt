@@ -30,6 +30,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.LaunchedEffect
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import pl.filebit.dietetyk.DietetykApp
 import pl.filebit.dietetyk.core.calc.DailyMacroGoal
 import pl.filebit.dietetyk.core.calc.GoalPipeline
@@ -37,11 +41,14 @@ import java.time.LocalDate
 import java.time.ZoneId
 import kotlin.math.min
 
+private data class DayMeal(val name: String, val time: String, val kcal: Int)
+
 @Composable
 fun TodayScreen(app: DietetykApp) {
     var goal by remember { mutableStateOf<DailyMacroGoal?>(null) }
     var consumed by remember { mutableIntStateOf(0) }
     var hasProfile by remember { mutableStateOf(true) }
+    var meals by remember { mutableStateOf<List<DayMeal>>(emptyList()) }
 
     LaunchedEffect(Unit) {
         val p = app.profileRepo.get()
@@ -50,6 +57,18 @@ fun TodayScreen(app: DietetykApp) {
         goal = p?.let { GoalPipeline.compute(it, latestMeasuredWeightKg = w) }
         val since = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
         consumed = app.database.energyLogDao().since(since).sumOf { it.kcalConsumed }
+        app.database.planDao().get()?.let { plan ->
+            meals = runCatching {
+                Json.parseToJsonElement(plan.planJson).jsonObject["meals"]!!.jsonArray.map { e ->
+                    val o = e.jsonObject
+                    DayMeal(
+                        o["name"]?.jsonPrimitive?.content ?: "Posiłek",
+                        o["timeHint"]?.jsonPrimitive?.content ?: "",
+                        o["kcal"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+                    )
+                }
+            }.getOrDefault(emptyList())
+        }
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
@@ -92,6 +111,28 @@ fun TodayScreen(app: DietetykApp) {
                     )
                 }
             }
+        }
+
+        if (meals.isNotEmpty()) {
+            Text("Posiłki dnia", color = Palette.TextDark, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 20.dp, bottom = 8.dp))
+            meals.forEachIndexed { i, m -> MealRow(i, m) }
+        }
+    }
+}
+
+@Composable
+private fun MealRow(index: Int, meal: DayMeal) {
+    Row(
+        Modifier.fillMaxWidth().padding(bottom = 8.dp).background(Palette.Card, RoundedCornerShape(14.dp)).padding(14.dp),
+        horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f).padding(end = 8.dp)) {
+            Text("Posiłek ${index + 1}" + (if (meal.time.isNotBlank()) " · ${meal.time}" else ""), color = Palette.Muted, fontSize = 11.sp)
+            Text(meal.name, color = Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 1.dp))
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            Text("${meal.kcal} kcal", color = Palette.Orange, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+            Text("⏳ Zaplanowany", color = Palette.Muted, fontSize = 11.sp)
         }
     }
 }
