@@ -43,7 +43,10 @@ object AiToolCatalog {
                 AiToolParam("activityLevel", "enum", false, "aktywność: SEDENTARY (siedzący), LIGHT (lekko aktywny), MODERATE (3-5 treningów), VERY_ACTIVE (6-7 treningów), EXTREME (zawodowo)"),
                 AiToolParam("daysPerWeek", "int", false, "liczba treningów/tydzień"),
                 AiToolParam("goal", "enum", true, "cel: FAT_LOSS (redukcja), MUSCLE_GAIN (masa), RECOMP (rekompozycja), MAINTAIN (utrzymanie), STRENGTH (siła), ENDURANCE (wydolność), HEALTH (zdrowie), EVENT_PREP (na termin)"),
-                AiToolParam("paceKgPerWeek", "double", false, "docelowe tempo zmiany masy w kg/tydzień, wartość dodatnia (np. 0.5)")
+                AiToolParam("paceKgPerWeek", "double", false, "docelowe tempo zmiany masy w kg/tydzień, wartość dodatnia (np. 0.5)"),
+                AiToolParam("goalWeightKg", "double", false, "docelowa waga w kg (do paska postępu w profilu)"),
+                AiToolParam("mealsPerDay", "int", false, "preferowana liczba posiłków dziennie (2-8)"),
+                AiToolParam("preferences", "string", false, "alergie/nietolerancje/preferencje krótko (np. 'laktoza; bez wieprzowiny')")
             ),
             mutating = true
         ),

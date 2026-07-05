@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -39,7 +41,16 @@ import pl.filebit.dietetyk.core.model.NutritionProfile
 fun ProfileScreen(app: DietetykApp) {
     var profile by remember { mutableStateOf<NutritionProfile?>(null) }
     var loaded by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { profile = app.profileRepo.get(); loaded = true }
+    var currentW by remember { mutableStateOf<Double?>(null) }
+    var startW by remember { mutableStateOf<Double?>(null) }
+    var meals by remember { androidx.compose.runtime.mutableIntStateOf(app.settings.mealsPerDay) }
+    LaunchedEffect(Unit) {
+        profile = app.profileRepo.get()
+        val samples = app.weightRepo.since(0)
+        currentW = samples.maxByOrNull { it.dateMs }?.weightKg ?: profile?.weightKg
+        startW = samples.minByOrNull { it.dateMs }?.weightKg ?: profile?.weightKg
+        loaded = true
+    }
 
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -68,8 +79,18 @@ fun ProfileScreen(app: DietetykApp) {
         )
     }
 
+    val white = androidx.compose.ui.graphics.Color.White
+    val userName = remember { app.settings.userName }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
-        Text("Profil", color = Palette.TextDark, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(56.dp).background(Palette.Green, androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) {
+                Text(userName.take(1).uppercase().ifBlank { "🙂" }, color = white, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
+            }
+            Column(Modifier.padding(start = 12.dp)) {
+                Text(userName.ifBlank { "Profil" }, color = Palette.TextDark, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
+                Text("Twój profil zdrowotny", color = Palette.Muted, fontSize = 13.sp)
+            }
+        }
         val p = profile
         if (p == null) {
             Text(
@@ -79,13 +100,26 @@ fun ProfileScreen(app: DietetykApp) {
             return
         }
 
-        // Hero cel
-        Column(Modifier.fillMaxWidth().padding(top = 12.dp).background(Palette.Green, RoundedCornerShape(18.dp)).padding(18.dp)) {
-            Text("MÓJ CEL · ${goalLabel(p.goal).uppercase()}", color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.85f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text(
-                (p.weightKg?.let { "${it} kg" } ?: "—"),
-                color = androidx.compose.ui.graphics.Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 4.dp)
-            )
+        // Karta celu: start → teraz → cel + pasek postępu
+        val goalW = app.settings.goalWeightKg.takeIf { it > 0 }
+        val cur = currentW ?: p.weightKg
+        val start = startW ?: p.weightKg
+        val frac = if (goalW != null && cur != null && start != null && kotlin.math.abs(goalW - start) > 0.1)
+            (kotlin.math.abs(cur - start) / kotlin.math.abs(goalW - start)).coerceIn(0.0, 1.0).toFloat() else 0f
+        Column(Modifier.fillMaxWidth().padding(top = 14.dp).background(Palette.Green, RoundedCornerShape(18.dp)).padding(18.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("MÓJ CEL · ${goalLabel(p.goal).uppercase()}", color = white.copy(alpha = 0.85f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                if (frac > 0f) Text("${(frac * 100).toInt()}%", color = white, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
+            }
+            Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.Bottom) {
+                Text(start?.let { "$it" } ?: "—", color = white.copy(alpha = 0.7f), fontSize = 16.sp)
+                Text("  →  ", color = white.copy(alpha = 0.7f), fontSize = 16.sp)
+                Text(cur?.let { "$it kg" } ?: "—", color = white, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
+                Text("  →  ${goalW?.let { "$it" } ?: "?"}", color = white.copy(alpha = 0.7f), fontSize = 16.sp)
+            }
+            Box(Modifier.fillMaxWidth().padding(top = 12.dp).height(7.dp).background(white.copy(alpha = 0.25f), RoundedCornerShape(4.dp))) {
+                Box(Modifier.fillMaxWidth(frac).height(7.dp).background(Palette.Orange, RoundedCornerShape(4.dp)))
+            }
         }
 
         InfoRow("Płeć", if (p.gender == Gender.MALE) "mężczyzna" else "kobieta")
@@ -96,6 +130,20 @@ fun ProfileScreen(app: DietetykApp) {
         InfoRow("Treningi/tydzień", "${p.daysPerWeek}")
         InfoRow("Cel", goalLabel(p.goal))
         InfoRow("Tempo", "${p.paceKgPerWeek} kg/tydz")
+        InfoRow("Preferencje", app.settings.dietaryPrefs.ifBlank { "—" })
+
+        // Stepper liczby posiłków
+        Row(
+            Modifier.fillMaxWidth().padding(top = 8.dp).background(Palette.Card, RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("🍽️ Liczba posiłków", color = Palette.TextDark, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(32.dp).background(Palette.GreenTint, androidx.compose.foundation.shape.CircleShape).clickable { if (meals > 2) { meals--; app.settings.mealsPerDay = meals } }, contentAlignment = Alignment.Center) { Text("−", color = Palette.GreenDark, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+                Text("$meals", color = Palette.TextDark, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(horizontal = 14.dp))
+                Box(Modifier.size(32.dp).background(Palette.GreenTint, androidx.compose.foundation.shape.CircleShape).clickable { if (meals < 8) { meals++; app.settings.mealsPerDay = meals } }, contentAlignment = Alignment.Center) { Text("+", color = Palette.GreenDark, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+            }
+        }
 
         Text("Ustawienia", color = Palette.TextDark, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 20.dp, bottom = 4.dp))
 
@@ -130,6 +178,12 @@ fun ProfileScreen(app: DietetykApp) {
         SettingRow("💾 Kopia zapasowa", "Udostępnij ›") {
             Backup.exportShareIntent(ctx, app)?.let { ctx.startActivity(Intent.createChooser(it, "Kopia zapasowa")) }
         }
+
+        Text(
+            "🛡️ Dietetyk AI nie zastępuje lekarza ani konsultacji medycznej.",
+            color = Palette.Muted, fontSize = 12.sp,
+            modifier = Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 8.dp)
+        )
     }
 }
 

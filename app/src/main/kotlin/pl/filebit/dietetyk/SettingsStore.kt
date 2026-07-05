@@ -29,6 +29,21 @@ class SettingsStore(context: Context) {
         get() = prefs.getString("user_name", "").orEmpty()
         set(v) { prefs.edit().putString("user_name", v).apply() }
 
+    /** Waga docelowa w kg (0 = nieustawiona). */
+    var goalWeightKg: Double
+        get() = prefs.getFloat("goal_weight", 0f).toDouble()
+        set(v) { prefs.edit().putFloat("goal_weight", v.toFloat()).apply() }
+
+    /** Liczba posiłków dziennie (2–8). */
+    var mealsPerDay: Int
+        get() = prefs.getInt("meals_per_day", 4)
+        set(v) { prefs.edit().putInt("meals_per_day", v.coerceIn(2, 8)).apply() }
+
+    /** Preferencje/alergie (krótki tekst zebrany przez AI). */
+    var dietaryPrefs: String
+        get() = prefs.getString("dietary_prefs", "").orEmpty()
+        set(v) { prefs.edit().putString("dietary_prefs", v).apply() }
+
     /** Historia rozmowy dla API Claude (JSON array tur) — trwałość między uruchomieniami. */
     var chatHistoryJson: String
         get() = prefs.getString("chat_history", "[]").orEmpty()

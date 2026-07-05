@@ -94,6 +94,9 @@ class DietToolHandler(
     private suspend fun saveProfile(input: JsonObject, now: Long): ToolResult {
         val p = input["profile"]?.jsonObject ?: input   // wspiera płaskie pola i zagnieżdżone
         p.string("name")?.let { app.settings.userName = it }
+        p.double("goalWeightKg")?.let { app.settings.goalWeightKg = it }
+        p.int("mealsPerDay")?.let { app.settings.mealsPerDay = it }
+        p.string("preferences")?.let { app.settings.dietaryPrefs = it }
         val profile = NutritionProfile(
             gender = enumOr(p.string("gender"), Gender.MALE),
             ageYears = p.int("ageYears") ?: p.int("wiek") ?: 30,

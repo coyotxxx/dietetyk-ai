@@ -2,6 +2,9 @@ package pl.filebit.dietetyk.ai
 
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Prowadzi rozmowę z Claude z pętlą tool-use: wysyła kontekst + narzędzia, a gdy AI woła narzędzie —
@@ -17,6 +20,22 @@ class DietitianConversation(
     /** Bezpiecznik przed zapętleniem tool-use (gdyby model nie kończył tury). */
     private val maxToolRounds = 8
 
+    private companion object {
+        const val MAX_HISTORY = 40
+        /** Utnij historię do ostatnich [max] tur; okno MUSI zaczynać się od wiadomości user typu text
+         * (inaczej wiszący tool_result → 400). Nie przecina par tool_use/tool_result. */
+        fun trimHistory(history: MutableList<JsonObject>, max: Int) {
+            while (history.size > max) history.removeAt(0)
+            while (history.isNotEmpty()) {
+                val m = history.first()
+                val role = m["role"]?.jsonPrimitive?.content
+                val firstType = (m["content"] as? JsonArray)?.firstOrNull()?.jsonObject?.get("type")?.jsonPrimitive?.content
+                if (role == "user" && firstType == "text") break
+                history.removeAt(0)
+            }
+        }
+    }
+
     suspend fun send(
         systemPrompt: String,
         history: MutableList<JsonObject>,
@@ -26,6 +45,9 @@ class DietitianConversation(
         maxTokens: Int = ClaudeConfig.DEFAULT_MAX_TOKENS,
         imageB64: String? = null
     ): String {
+        // Okno kontekstu: trzymaj tylko ostatnie tury do API (koszt/limit tokenów).
+        // Trwała historia (Room + prefs) jest pełna; stan trwały niesie DietitianContext.
+        trimHistory(history, MAX_HISTORY)
         history += if (imageB64 != null) ClaudeMessages.userContent(userMessage, imageB64)
                    else ClaudeMessages.userText(userMessage)
 
