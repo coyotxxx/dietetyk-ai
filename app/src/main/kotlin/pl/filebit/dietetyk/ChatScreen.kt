@@ -23,9 +23,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.toMutableStateList
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -34,8 +37,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import pl.filebit.dietetyk.data.db.ChatMessageEntity
 import pl.filebit.dietetyk.ui.ActionCard
 import pl.filebit.dietetyk.ai.ClaudeHttpApi
 import pl.filebit.dietetyk.ai.DietToolHandler
@@ -46,7 +53,7 @@ import pl.filebit.dietetyk.core.aicontract.DietitianPrompt
 import pl.filebit.dietetyk.core.aicontract.InterviewTopic
 import pl.filebit.dietetyk.ui.Palette
 
-private data class UiMsg(
+internal data class UiMsg(
     val fromUser: Boolean, val text: String,
     val actions: List<String> = emptyList(),
     val cards: List<pl.filebit.dietetyk.ui.CardData> = emptyList()
@@ -70,6 +77,73 @@ private fun parseAiReply(raw: String): UiMsg {
     return UiMsg(false, if (text.isBlank() && cards.isNotEmpty()) "" else text.ifBlank { "…" }, actions, cards)
 }
 
+/** Stan i trwałość rozmowy — przeżywa zmianę zakładki (VM) i restart (Room + prefs). */
+internal class ChatViewModel(private val app: DietetykApp) : ViewModel() {
+    val messages = mutableStateListOf<UiMsg>()
+    val history = mutableListOf<JsonObject>()
+    var sending by mutableStateOf(false); private set
+    private val handler = DietToolHandler(app)
+
+    init {
+        viewModelScope.launch {
+            val stored = app.database.chatMessageDao().all()
+            if (stored.isEmpty()) {
+                messages.add(UiMsg(false, "Cześć! Jestem Twoim dietetykiem. Opowiedz mi o sobie — co chciałbyś osiągnąć?"))
+            } else {
+                stored.forEach { messages.add(it.toUiMsg()) }
+                runCatching {
+                    kotlinx.serialization.json.Json.parseToJsonElement(app.settings.chatHistoryJson).jsonArray
+                        .forEach { history.add(it.jsonObject) }
+                }
+            }
+        }
+    }
+
+    private fun ChatMessageEntity.toUiMsg(): UiMsg {
+        val cards = runCatching {
+            if (cardsJson.isBlank()) emptyList()
+            else kotlinx.serialization.json.Json.parseToJsonElement(cardsJson).jsonArray.mapNotNull { it as? JsonObject }
+                .map { pl.filebit.dietetyk.ui.CardData(it["type"]?.jsonPrimitive?.content ?: "generic", it) }
+        }.getOrDefault(emptyList())
+        return UiMsg(fromUser, text, if (actionsCsv.isBlank()) emptyList() else actionsCsv.split("|"), cards)
+    }
+
+    private suspend fun persist(msg: UiMsg) {
+        val cardsJson = if (msg.cards.isEmpty()) "" else buildJsonArray { msg.cards.forEach { add(it.json) } }.toString()
+        app.database.chatMessageDao().insert(
+            ChatMessageEntity(fromUser = msg.fromUser, text = msg.text, actionsCsv = msg.actions.joinToString("|"), cardsJson = cardsJson, createdAt = System.currentTimeMillis())
+        )
+    }
+
+    private fun saveHistory() { app.settings.chatHistoryJson = buildJsonArray { history.forEach { add(it) } }.toString() }
+
+    fun send(raw: String, apiKey: String) {
+        val text = raw.trim()
+        if (text.isEmpty() || sending) return
+        val userMsg = UiMsg(true, text); messages.add(userMsg); sending = true
+        viewModelScope.launch {
+            persist(userMsg)
+            val reply = runCatching { sendToDietitian(app, history, text, handler, apiKey) }.getOrElse { "Coś poszło nie tak: ${it.message}" }
+            val aiMsg = parseAiReply(reply); messages.add(aiMsg); persist(aiMsg); saveHistory()
+            sending = false
+        }
+    }
+
+    fun sendPhoto(b64: String?, apiKey: String) {
+        if (sending) return
+        val userMsg = UiMsg(true, "📷 Zdjęcie posiłku"); messages.add(userMsg); sending = true
+        viewModelScope.launch {
+            persist(userMsg)
+            val reply = if (b64 == null) "Nie udało się odczytać zdjęcia — spróbuj jeszcze raz."
+            else runCatching {
+                sendToDietitian(app, history, "To zdjęcie mojego posiłku. Rozpoznaj co to, oszacuj kalorie i makro, i zapytaj czy zapisać.", handler, apiKey, imageB64 = b64)
+            }.getOrElse { "Coś poszło nie tak przy analizie zdjęcia: ${it.message}" }
+            val aiMsg = parseAiReply(reply); messages.add(aiMsg); persist(aiMsg); saveHistory()
+            sending = false
+        }
+    }
+}
+
 @Composable
 fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier) {
     var apiKey by remember { mutableStateOf(app.settings.apiKey) }
@@ -78,63 +152,28 @@ fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier) {
         return
     }
 
-    val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
-    val messages = remember {
-        listOf(UiMsg(false, "Cześć! Jestem Twoim dietetykiem. Opowiedz mi o sobie — co chciałbyś osiągnąć?")).toMutableStateList()
-    }
-    val history = remember { mutableListOf<JsonObject>() }
-    val handler = remember { DietToolHandler(app) }
+    val vm: ChatViewModel = viewModel { ChatViewModel(app) }
     var input by remember { mutableStateOf("") }
-    var sending by remember { mutableStateOf(false) }
     var photoUri by remember { mutableStateOf<android.net.Uri?>(null) }
-
-    val send: (String) -> Unit = send@{ raw ->
-        val text = raw.trim()
-        if (text.isEmpty() || sending) return@send
-        messages.add(UiMsg(true, text))
-        sending = true
-        scope.launch {
-            val reply = runCatching { sendToDietitian(app, history, text, handler, apiKey) }
-                .getOrElse { "Coś poszło nie tak: ${it.message}" }
-            messages.add(parseAiReply(reply))
-            sending = false
-        }
-    }
 
     val cameraLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.TakePicture()
     ) { success ->
         val uri = photoUri
-        if (success && uri != null && !sending) {
-            messages.add(UiMsg(true, "📷 Zdjęcie posiłku"))
-            sending = true
-            scope.launch {
-                val b64 = ImageUtil.toBase64Jpeg(context, uri)
-                val reply = if (b64 == null) "Nie udało się odczytać zdjęcia — spróbuj jeszcze raz."
-                else runCatching {
-                    sendToDietitian(
-                        app, history,
-                        "To zdjęcie mojego posiłku. Rozpoznaj co to, oszacuj kalorie i makro, i zapytaj czy zapisać.",
-                        handler, apiKey, imageB64 = b64
-                    )
-                }.getOrElse { "Coś poszło nie tak przy analizie zdjęcia: ${it.message}" }
-                messages.add(parseAiReply(reply))
-                sending = false
-            }
-        }
+        if (success && uri != null) vm.sendPhoto(ImageUtil.toBase64Jpeg(context, uri), apiKey)
     }
 
     Column(modifier.fillMaxSize().background(Palette.Bg).imePadding().padding(12.dp)) {
         Text("Dietetyk AI", color = Palette.TextDark, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
         LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(messages) { msg -> MessageItem(msg, sending) { send(it) } }
-            if (sending) item { Text("Dietetyk pisze…", color = Palette.Green, fontSize = 13.sp) }
+            items(vm.messages) { msg -> MessageItem(msg, vm.sending) { vm.send(it, apiKey) } }
+            if (vm.sending) item { Text("Dietetyk pisze…", color = Palette.Green, fontSize = 13.sp) }
         }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier.padding(end = 6.dp).background(Palette.GreenTint, RoundedCornerShape(14.dp))
-                    .clickable(enabled = !sending) {
+                    .clickable(enabled = !vm.sending) {
                         val uri = ImageUtil.newPhotoUri(context)
                         photoUri = uri
                         cameraLauncher.launch(uri)
@@ -143,10 +182,10 @@ fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier) {
             ) { Text("📷", fontSize = 20.sp) }
             OutlinedTextField(
                 value = input, onValueChange = { input = it },
-                modifier = Modifier.weight(1f), placeholder = { Text("Napisz do dietetyka…") }, enabled = !sending
+                modifier = Modifier.weight(1f), placeholder = { Text("Napisz do dietetyka…") }, enabled = !vm.sending
             )
             Button(
-                onClick = { send(input); input = "" },
+                onClick = { vm.send(input, apiKey); input = "" },
                 colors = ButtonDefaults.buttonColors(containerColor = Palette.Green),
                 modifier = Modifier.padding(start = 8.dp)
             ) { Text("Wyślij") }

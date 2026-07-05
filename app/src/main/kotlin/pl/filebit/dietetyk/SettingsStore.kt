@@ -29,6 +29,11 @@ class SettingsStore(context: Context) {
         get() = prefs.getString("user_name", "").orEmpty()
         set(v) { prefs.edit().putString("user_name", v).apply() }
 
+    /** Historia rozmowy dla API Claude (JSON array tur) — trwałość między uruchomieniami. */
+    var chatHistoryJson: String
+        get() = prefs.getString("chat_history", "[]").orEmpty()
+        set(v) { prefs.edit().putString("chat_history", v).apply() }
+
     /** Motyw: "system" | "light" | "dark". */
     var themeMode: String
         get() = prefs.getString("theme_mode", "system").orEmpty()
