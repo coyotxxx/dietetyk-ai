@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -32,9 +33,10 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import pl.filebit.dietetyk.DietetykApp
 
+private data class ShopItem(val name: String, val grams: Int, val cat: String)
 private data class PlanMeal(
-    val name: String, val time: String, val kcal: Int, val ingredients: String,
-    val ings: List<Pair<String, Int>>
+    val name: String, val time: String, val kcal: Int, val prep: Int, val ingredients: String,
+    val ings: List<ShopItem>
 )
 
 private val RECIPE_VARIANTS = listOf("Tradycyjnie", "Air Fryer", "Thermomix")
@@ -71,7 +73,10 @@ private fun MealCard(app: DietetykApp, index: Int, meal: PlanMeal) {
                 Text("POSIŁEK ${index + 1}" + (if (meal.time.isNotBlank()) " · ${meal.time}" else ""), color = Palette.Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 Text(meal.name, color = Palette.TextDark, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 2.dp))
             }
-            Text("${meal.kcal} kcal", color = Palette.Orange, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
+            Column(horizontalAlignment = Alignment.End) {
+                Text("${meal.kcal} kcal", color = Palette.Orange, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
+                if (meal.prep > 0) Text("⏱ ${meal.prep} min", color = Palette.Muted, fontSize = 11.sp, maxLines = 1, softWrap = false)
+            }
         }
         if (meal.ingredients.isNotBlank()) {
             Text(meal.ingredients, color = Palette.Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
@@ -105,6 +110,7 @@ fun PlanScreen(app: DietetykApp) {
     var targetKcal by remember { mutableStateOf(0) }
     var loaded by remember { mutableStateOf(false) }
     var showShopping by remember { mutableStateOf(false) }
+    val checked = remember { androidx.compose.runtime.mutableStateMapOf<String, Boolean>() }
 
     LaunchedEffect(Unit) {
         val entity = app.database.planDao().get()
@@ -115,12 +121,17 @@ fun PlanScreen(app: DietetykApp) {
                 Json.parseToJsonElement(entity.planJson).jsonObject["meals"]!!.jsonArray.map { e ->
                     val o = e.jsonObject
                     val ings = (o["ings"] as? kotlinx.serialization.json.JsonArray)?.mapNotNull { it as? kotlinx.serialization.json.JsonObject }?.map { io ->
-                        (io["name"]?.jsonPrimitive?.content ?: "") to (io["grams"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0)
+                        ShopItem(
+                            io["name"]?.jsonPrimitive?.content ?: "",
+                            io["grams"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
+                            io["cat"]?.jsonPrimitive?.content ?: "Inne"
+                        )
                     } ?: emptyList()
                     PlanMeal(
                         name = o["name"]?.jsonPrimitive?.content ?: "Posiłek",
                         time = o["timeHint"]?.jsonPrimitive?.content ?: "",
                         kcal = o["kcal"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
+                        prep = o["prepMinutes"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
                         ingredients = o["ingredients"]?.jsonPrimitive?.content ?: "",
                         ings = ings
                     )
@@ -130,7 +141,8 @@ fun PlanScreen(app: DietetykApp) {
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
-        Text("Plan", color = Palette.TextDark, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
+        Text("Plan tygodniowy", color = Palette.TextDark, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
+        WeekDays(Modifier.padding(top = 12.dp))
         val m = meals
         if (m == null || m.isEmpty()) {
             Text(
@@ -145,11 +157,11 @@ fun PlanScreen(app: DietetykApp) {
 
         m.forEachIndexed { i, meal -> MealCard(app, i, meal) }
 
-        // === Lista zakupów (agregacja składników) ===
-        val shopping = m.flatMap { it.ings }
-            .groupBy({ it.first }, { it.second })
-            .mapValues { it.value.sum() }
-            .filterKeys { it.isNotBlank() }
+        // === Lista zakupów (agregacja + kategorie + odhaczanie) ===
+        val shopping = m.flatMap { it.ings }.filter { it.name.isNotBlank() }
+            .groupBy { it.name }
+            .map { (name, items) -> Triple(name, items.sumOf { it.grams }, items.first().cat) }
+        val byCat = shopping.groupBy { it.third }.toSortedMap()
         if (shopping.isNotEmpty()) {
             Row(
                 Modifier.fillMaxWidth().padding(top = 4.dp)
@@ -162,13 +174,53 @@ fun PlanScreen(app: DietetykApp) {
             }
             if (showShopping) {
                 Column(Modifier.fillMaxWidth().padding(top = 8.dp).background(Palette.Card, RoundedCornerShape(14.dp)).padding(14.dp)) {
-                    shopping.entries.sortedBy { it.key }.forEach { (name, grams) ->
-                        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(name, color = Palette.TextDark, fontSize = 14.sp)
-                            Text("${grams} g", color = Palette.Muted, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    byCat.forEach { (cat, items) ->
+                        Text(cat.uppercase(), color = Palette.Green, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 8.dp, bottom = 2.dp))
+                        items.sortedBy { it.first }.forEach { (name, grams, _) ->
+                            val isOn = checked[name] == true
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 5.dp).clickable { checked[name] = !isOn },
+                                horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        Modifier.size(20.dp).background(if (isOn) Palette.Green else Palette.Line, RoundedCornerShape(6.dp)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (isOn) Text("✓", color = androidx.compose.ui.graphics.Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                    Text(
+                                        name, color = if (isOn) Palette.Muted else Palette.TextDark, fontSize = 14.sp,
+                                        textDecoration = if (isOn) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
+                                        modifier = Modifier.padding(start = 10.dp)
+                                    )
+                                }
+                                Text("${grams} g", color = Palette.Muted, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/** Pasek dni bieżącego tygodnia (dzisiejszy podświetlony). */
+@Composable
+private fun WeekDays(modifier: Modifier = Modifier) {
+    val today = java.time.LocalDate.now()
+    val monday = today.minusDays((today.dayOfWeek.value - 1).toLong())
+    val short = listOf("Pn", "Wt", "Śr", "Cz", "Pt", "So", "Nd")
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        for (i in 0..6) {
+            val d = monday.plusDays(i.toLong())
+            val isToday = d == today
+            Column(
+                Modifier.weight(1f).background(if (isToday) Palette.Green else Palette.Card, RoundedCornerShape(12.dp)).padding(vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(short[i], color = if (isToday) androidx.compose.ui.graphics.Color.White else Palette.Muted, fontSize = 11.sp)
+                Text("${d.dayOfMonth}", color = if (isToday) androidx.compose.ui.graphics.Color.White else Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
         }
     }

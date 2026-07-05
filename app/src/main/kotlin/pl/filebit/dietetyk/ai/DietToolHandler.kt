@@ -165,13 +165,15 @@ class DietToolHandler(
         }
         val plan = AiDayPlan(parsed.map { it.recipe })
 
-        // Baza produktów → model do walidatora
-        val byName = app.database.foodProductDao().all().associate { e ->
+        // Baza produktów → model do walidatora + mapa kategorii (do listy zakupów)
+        val entities = app.database.foodProductDao().all()
+        val byName = entities.associate { e ->
             e.name.lowercase() to FoodProductModel(
                 id = e.id, name = e.name, kcalPer100g = e.kcal,
                 proteinPer100g = e.proteinG, carbsPer100g = e.carbsG, fatPer100g = e.fatG
             )
         }
+        val catByName = entities.associate { it.name.lowercase() to it.category }
 
         val ctx = ValidationContext(
             expectedMealsCount = plan.meals.size,
@@ -197,12 +199,15 @@ class DietToolHandler(
                     }
                 }
                 add(buildJsonObject {
-                    put("name", pm.name); put("timeHint", pm.time)
+                    put("name", pm.name); put("timeHint", pm.time); put("prepMinutes", pm.recipe.prepMinutes)
                     put("kcal", k.toInt()); put("proteinG", pr.toInt()); put("carbsG", c.toInt()); put("fatG", f.toInt())
                     put("ingredients", pm.recipe.ingredients.joinToString(", ") { "${it.productName} ${it.grams}g" })
                     put("ings", buildJsonArray {
                         pm.recipe.ingredients.forEach { ing ->
-                            add(buildJsonObject { put("name", ing.productName); put("grams", ing.grams) })
+                            val cat = catByName[ing.productName.trim().lowercase()]
+                                ?: catByName.entries.firstOrNull { (kk, _) -> kk.contains(ing.productName.trim().lowercase()) }?.value
+                                ?: "Inne"
+                            add(buildJsonObject { put("name", ing.productName); put("grams", ing.grams); put("cat", cat) })
                         }
                     })
                 })
