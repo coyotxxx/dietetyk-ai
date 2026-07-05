@@ -34,6 +34,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import pl.filebit.dietetyk.ui.ActionCard
 import pl.filebit.dietetyk.ai.ClaudeHttpApi
 import pl.filebit.dietetyk.ai.DietToolHandler
 import pl.filebit.dietetyk.ai.DietitianConversation
@@ -43,16 +46,28 @@ import pl.filebit.dietetyk.core.aicontract.DietitianPrompt
 import pl.filebit.dietetyk.core.aicontract.InterviewTopic
 import pl.filebit.dietetyk.ui.Palette
 
-private data class UiMsg(val fromUser: Boolean, val text: String, val actions: List<String> = emptyList())
+private data class UiMsg(
+    val fromUser: Boolean, val text: String,
+    val actions: List<String> = emptyList(),
+    val cards: List<pl.filebit.dietetyk.ui.CardData> = emptyList()
+)
 
 private val ACTIONS_RE = Regex("""\[\[\s*akcje\s*:\s*(.+?)\s*]]""", RegexOption.IGNORE_CASE)
+private val CARD_RE = Regex("""\[\[card\]\]\s*(\{.*?\})\s*\[\[/card\]\]""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
 
-/** Wyodrębnij szybkie odpowiedzi `[[akcje: A | B | C]]` i oczyść tekst. */
-private fun parseActions(raw: String): UiMsg {
-    val m = ACTIONS_RE.find(raw)
-    val actions = m?.groupValues?.get(1)?.split("|")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList()
-    val text = ACTIONS_RE.replace(raw, "").trim()
-    return UiMsg(false, text.ifBlank { "…" }, actions)
+/** Wyodrębnij karty `[[card]]{...}[[/card]]` i szybkie odpowiedzi `[[akcje: A|B|C]]`, oczyść tekst. */
+private fun parseAiReply(raw: String): UiMsg {
+    val cards = CARD_RE.findAll(raw).mapNotNull { m ->
+        runCatching {
+            val obj = kotlinx.serialization.json.Json.parseToJsonElement(m.groupValues[1]).jsonObject
+            pl.filebit.dietetyk.ui.CardData(obj["type"]?.jsonPrimitive?.content ?: "generic", obj)
+        }.getOrNull()
+    }.toList()
+    var text = CARD_RE.replace(raw, "").trim()
+    val am = ACTIONS_RE.find(text)
+    val actions = am?.groupValues?.get(1)?.split("|")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList()
+    text = ACTIONS_RE.replace(text, "").trim()
+    return UiMsg(false, if (text.isBlank() && cards.isNotEmpty()) "" else text.ifBlank { "…" }, actions, cards)
 }
 
 @Composable
@@ -82,7 +97,7 @@ fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier) {
         scope.launch {
             val reply = runCatching { sendToDietitian(app, history, text, handler, apiKey) }
                 .getOrElse { "Coś poszło nie tak: ${it.message}" }
-            messages.add(parseActions(reply))
+            messages.add(parseAiReply(reply))
             sending = false
         }
     }
@@ -104,7 +119,7 @@ fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier) {
                         handler, apiKey, imageB64 = b64
                     )
                 }.getOrElse { "Coś poszło nie tak przy analizie zdjęcia: ${it.message}" }
-                messages.add(parseActions(reply))
+                messages.add(parseAiReply(reply))
                 sending = false
             }
         }
@@ -153,7 +168,8 @@ private suspend fun sendToDietitian(
 @Composable
 private fun MessageItem(msg: UiMsg, sending: Boolean, onAction: (String) -> Unit) {
     Column(Modifier.fillMaxWidth()) {
-        Bubble(msg)
+        if (msg.text.isNotBlank()) Bubble(msg)
+        msg.cards.forEach { card -> ActionCard(card, onAction) }
         if (!msg.fromUser && msg.actions.isNotEmpty()) {
             Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 msg.actions.take(3).forEach { a ->

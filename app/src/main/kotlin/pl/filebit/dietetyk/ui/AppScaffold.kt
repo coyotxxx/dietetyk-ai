@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.shadow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.RestaurantMenu
@@ -85,12 +86,13 @@ private fun BottomBar(current: Tab, onSelect: (Tab) -> Unit) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.clickable { onSelect(t) }.padding(horizontal = 4.dp)
-                    .then(if (center) Modifier.offset(y = (-16).dp) else Modifier)
+                    .then(if (center) Modifier.offset(y = (-20).dp) else Modifier)
             ) {
                 if (center) {
                     Box(
                         Modifier.size(58.dp)
                             .background(Palette.Bg, CircleShape).padding(4.dp)
+                            .shadow(10.dp, CircleShape)
                             .background(Palette.Green, CircleShape),
                         contentAlignment = Alignment.Center
                     ) { Icon(t.icon, t.label, tint = Color.White, modifier = Modifier.size(28.dp)) }
