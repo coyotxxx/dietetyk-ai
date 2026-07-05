@@ -40,9 +40,10 @@ fun ProgressScreen(app: DietetykApp) {
     var loaded by remember { mutableStateOf(false) }
     var reloadKey by remember { mutableStateOf(0) }
     var showSheet by remember { mutableStateOf(false) }
+    var range by remember { mutableStateOf(30) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     LaunchedEffect(reloadKey) {
-        samples = app.weightRepo.since(System.currentTimeMillis() - 90L * 24 * 3600 * 1000)
+        samples = app.weightRepo.since(System.currentTimeMillis() - 365L * 24 * 3600 * 1000)
         loaded = true
     }
 
@@ -67,31 +68,73 @@ fun ProgressScreen(app: DietetykApp) {
             ) { Text("+ Waga", color = androidx.compose.ui.graphics.Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
         }
 
-        val latest = samples.maxByOrNull { it.dateMs }?.weightKg
+        val allSorted = samples.sortedBy { it.dateMs }
+        val latest = allSorted.lastOrNull()?.weightKg
+        val startAll = allSorted.firstOrNull()?.weightKg
+        val delta = if (latest != null && startAll != null) latest - startAll else null
+        val goalW = app.settings.goalWeightKg.takeIf { it > 0 }
+        val now = System.currentTimeMillis()
+        val ranged = allSorted.filter { it.dateMs >= now - range.toLong() * 24 * 3600 * 1000 }
+
+        // Karta wagi + delta
         Column(Modifier.fillMaxWidth().padding(top = 12.dp).background(Palette.Card, RoundedCornerShape(18.dp)).padding(18.dp)) {
-            Text("Waga", color = Palette.Muted, fontSize = 13.sp)
-            Text(latest?.let { "$it kg" } ?: "—", color = Palette.TextDark, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold)
-            if (samples.size >= 3) {
-                val t = TrendAnalyzer.analyze(samples)
-                val dir = when (t.direction) {
-                    TrendDirection.FALLING -> "spada"
-                    TrendDirection.RISING -> "rośnie"
-                    TrendDirection.FLAT -> "stabilna"
-                    else -> "—"
+            Text("Aktualna waga", color = Palette.Muted, fontSize = 13.sp)
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(latest?.let { kgP(it) + " kg" } ?: "—", color = Palette.TextDark, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold)
+                if (delta != null && kotlin.math.abs(delta) >= 0.1) {
+                    val down = delta < 0
+                    Box(Modifier.padding(start = 10.dp, bottom = 4.dp).background(Palette.GreenTint, RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 3.dp)) {
+                        Text((if (down) "↓ " else "↑ ") + kgP(kotlin.math.abs(delta)) + " kg", color = if (down) Palette.Green else Palette.Orange, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
+                    }
                 }
-                Text(
-                    "Trend: $dir" + (t.slopeKgPerWeek?.let { " (%.2f kg/tydz)".format(it) } ?: ""),
-                    color = Palette.Green, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp)
-                )
             }
         }
 
-        if (samples.size >= 2) {
+        // Kafelki metryk 2×2
+        val toGoal = if (goalW != null && latest != null) kotlin.math.abs(latest - goalW) else null
+        val adherence = run {
+            val today = java.time.LocalDate.now()
+            val meals = app.settings.mealsPerDay
+            var eaten = 0
+            for (i in 0 until 7) {
+                val d = today.minusDays(i.toLong())
+                eaten += app.settings.eatenCountForDay("%04d%02d%02d".format(d.year, d.monthValue, d.dayOfMonth))
+            }
+            val denom = meals * 7
+            if (denom > 0) (eaten * 100 / denom).coerceIn(0, 100) else null
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            MetricTileP("Do celu", toGoal?.let { kgP(it) + " kg" } ?: "—", Palette.Orange, Modifier.weight(1f))
+            MetricTileP("Trzymanie planu", adherence?.let { "$it%" } ?: "—", Palette.Green, Modifier.weight(1f))
+        }
+
+        // Segmented 7/30/90
+        Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(7 to "7 dni", 30 to "30 dni", 90 to "90 dni").forEach { (d, label) ->
+                val active = range == d
+                Box(
+                    Modifier.weight(1f).background(if (active) Palette.Green else Palette.Card, RoundedCornerShape(10.dp)).clickable { range = d }.padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) { Text(label, color = if (active) androidx.compose.ui.graphics.Color.White else Palette.Muted, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+            }
+        }
+
+        if (ranged.size >= 2) {
             WeightChart(
-                samples.sortedBy { it.dateMs },
-                Modifier.fillMaxWidth().padding(top = 12.dp).height(160.dp)
+                ranged, goalW,
+                Modifier.fillMaxWidth().padding(top = 10.dp).height(170.dp)
                     .background(Palette.Card, RoundedCornerShape(18.dp)).padding(16.dp)
             )
+            // Stopka: cel + ETA
+            val trend = if (ranged.size >= 3) TrendAnalyzer.analyze(ranged) else null
+            val slope = trend?.slopeKgPerWeek
+            val eta = if (goalW != null && latest != null && slope != null && kotlin.math.abs(slope) > 0.02 &&
+                ((goalW < latest && slope < 0) || (goalW > latest && slope > 0)))
+                (kotlin.math.abs(latest - goalW) / kotlin.math.abs(slope)).let { kotlin.math.ceil(it).toInt() } else null
+            Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(goalW?.let { "Cel ${kgP(it)} kg" } ?: "Cel: nie ustawiony", color = Palette.Muted, fontSize = 12.sp)
+                Text(eta?.let { "ok. $it tyg. do celu" } ?: "", color = Palette.Green, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
         }
 
         Text("Historia pomiarów", color = Palette.TextDark, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 20.dp, bottom = 8.dp))
@@ -104,7 +147,7 @@ fun ProgressScreen(app: DietetykApp) {
                 horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(dayLabel(s.dateMs), color = Palette.Muted, fontSize = 13.sp)
-                Text("${s.weightKg} kg", color = Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text(kgP(s.weightKg) + " kg", color = Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -113,6 +156,16 @@ fun ProgressScreen(app: DietetykApp) {
 private fun dayLabel(ms: Long): String {
     val d = java.time.Instant.ofEpochMilli(ms).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
     return "${d.dayOfMonth}.${d.monthValue}.${d.year}"
+}
+
+private fun kgP(d: Double): String = (if (d % 1.0 == 0.0) "%.0f" else "%.1f").format(d).replace('.', ',')
+
+@Composable
+private fun MetricTileP(label: String, value: String, tint: androidx.compose.ui.graphics.Color, modifier: Modifier) {
+    Column(modifier.background(Palette.Card, RoundedCornerShape(14.dp)).padding(14.dp)) {
+        Text(value, color = tint, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+        Text(label, color = Palette.Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+    }
 }
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
@@ -140,26 +193,35 @@ private fun NewMeasurementSheet(onDismiss: () -> Unit, onSave: (Double) -> Unit)
     }
 }
 
-/** Prosty wykres liniowy wagi (posortowane rosnąco po dacie). */
+/** Wykres liniowy wagi z przerywaną linią celu i gradientowym wypełnieniem. */
 @Composable
-private fun WeightChart(sorted: List<WeightSample>, modifier: Modifier) {
-    val minW = sorted.minOf { it.weightKg }
-    val maxW = sorted.maxOf { it.weightKg }
-    val range = (maxW - minW).takeIf { it > 0.01 } ?: 1.0
+private fun WeightChart(sorted: List<WeightSample>, goalW: Double?, modifier: Modifier) {
+    val vals = sorted.map { it.weightKg } + listOfNotNull(goalW)
+    val minW = vals.min()
+    val maxW = vals.max()
+    val span = (maxW - minW).takeIf { it > 0.01 } ?: 1.0
     val greenColor = Palette.Green
+    val fillColor = Palette.Green.copy(alpha = 0.15f)
+    val lineColor = Palette.Line
     Canvas(modifier) {
         val n = sorted.size
         val dx = if (n > 1) size.width / (n - 1) else 0f
-        fun yFor(w: Double) = (size.height * (1f - ((w - minW) / range).toFloat())).toFloat()
+        fun yFor(w: Double) = (size.height * (1f - ((w - minW) / span).toFloat())).toFloat()
+        // linia celu (przerywana)
+        if (goalW != null) {
+            val gy = yFor(goalW)
+            drawLine(lineColor, androidx.compose.ui.geometry.Offset(0f, gy), androidx.compose.ui.geometry.Offset(size.width, gy),
+                strokeWidth = 3f, pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(14f, 10f)))
+        }
+        // fill pod krzywą
+        val fill = androidx.compose.ui.graphics.Path()
+        sorted.forEachIndexed { i, s -> val x = i * dx; val y = yFor(s.weightKg); if (i == 0) fill.moveTo(x, y) else fill.lineTo(x, y) }
+        fill.lineTo((n - 1) * dx, size.height); fill.lineTo(0f, size.height); fill.close()
+        drawPath(fill, fillColor)
+        // krzywa
         val path = androidx.compose.ui.graphics.Path()
-        sorted.forEachIndexed { i, s ->
-            val x = i * dx
-            val y = yFor(s.weightKg)
-            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
-        }
+        sorted.forEachIndexed { i, s -> val x = i * dx; val y = yFor(s.weightKg); if (i == 0) path.moveTo(x, y) else path.lineTo(x, y) }
         drawPath(path, greenColor, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 6f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-        sorted.forEachIndexed { i, s ->
-            drawCircle(greenColor, radius = 7f, center = androidx.compose.ui.geometry.Offset(i * dx, yFor(s.weightKg)))
-        }
+        sorted.forEachIndexed { i, s -> drawCircle(greenColor, radius = 7f, center = androidx.compose.ui.geometry.Offset(i * dx, yFor(s.weightKg))) }
     }
 }

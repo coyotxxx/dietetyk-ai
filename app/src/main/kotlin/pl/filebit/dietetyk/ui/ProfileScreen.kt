@@ -37,6 +37,9 @@ import pl.filebit.dietetyk.core.model.DietGoalType
 import pl.filebit.dietetyk.core.model.Gender
 import pl.filebit.dietetyk.core.model.NutritionProfile
 
+/** Formatuje wagę: bez zbędnego „.0", przecinek dziesiętny (84.0→„84", 81.6→„81,6"). */
+private fun kg(d: Double?): String = d?.let { (if (it % 1.0 == 0.0) "%.0f" else "%.1f").format(it).replace('.', ',') } ?: "—"
+
 @Composable
 fun ProfileScreen(app: DietetykApp) {
     var profile by remember { mutableStateOf<NutritionProfile?>(null) }
@@ -100,32 +103,60 @@ fun ProfileScreen(app: DietetykApp) {
             return
         }
 
-        // Karta celu: start → teraz → cel + pasek postępu
-        val goalW = app.settings.goalWeightKg.takeIf { it > 0 }
+        // Karta celu: start → teraz → cel + pasek postępu (tap = edycja celu)
+        var goalWState by remember { androidx.compose.runtime.mutableStateOf(app.settings.goalWeightKg) }
+        var showGoalDialog by remember { mutableStateOf(false) }
+        val goalW = goalWState.takeIf { it > 0 }
         val cur = currentW ?: p.weightKg
         val start = startW ?: p.weightKg
         val frac = if (goalW != null && cur != null && start != null && kotlin.math.abs(goalW - start) > 0.1)
             (kotlin.math.abs(cur - start) / kotlin.math.abs(goalW - start)).coerceIn(0.0, 1.0).toFloat() else 0f
-        Column(Modifier.fillMaxWidth().padding(top = 14.dp).background(Palette.Green, RoundedCornerShape(18.dp)).padding(18.dp)) {
+        Column(Modifier.fillMaxWidth().padding(top = 14.dp).background(Palette.Green, RoundedCornerShape(18.dp)).clickable { showGoalDialog = true }.padding(18.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("MÓJ CEL · ${goalLabel(p.goal).uppercase()}", color = white.copy(alpha = 0.85f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 if (frac > 0f) Text("${(frac * 100).toInt()}%", color = white, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
             }
-            Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.Bottom) {
-                Text(start?.let { "$it" } ?: "—", color = white.copy(alpha = 0.7f), fontSize = 16.sp)
-                Text("  →  ", color = white.copy(alpha = 0.7f), fontSize = 16.sp)
-                Text(cur?.let { "$it kg" } ?: "—", color = white, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
-                Text("  →  ${goalW?.let { "$it" } ?: "?"}", color = white.copy(alpha = 0.7f), fontSize = 16.sp)
+            if (goalW == null) {
+                Text(kg(cur) + " kg", color = white, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 8.dp))
+                Text("Ustal wagę docelową →", color = white.copy(alpha = 0.85f), fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 2.dp))
+            } else {
+                Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.Bottom) {
+                    Text(kg(start), color = white.copy(alpha = 0.7f), fontSize = 16.sp)
+                    Text("  →  ", color = white.copy(alpha = 0.7f), fontSize = 16.sp)
+                    Text(kg(cur) + " kg", color = white, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
+                    Text("  →  " + kg(goalW), color = white.copy(alpha = 0.7f), fontSize = 16.sp)
+                }
+                Box(Modifier.fillMaxWidth().padding(top = 12.dp).height(7.dp).background(white.copy(alpha = 0.25f), RoundedCornerShape(4.dp))) {
+                    Box(Modifier.fillMaxWidth(frac).height(7.dp).background(Palette.Orange, RoundedCornerShape(4.dp)))
+                }
             }
-            Box(Modifier.fillMaxWidth().padding(top = 12.dp).height(7.dp).background(white.copy(alpha = 0.25f), RoundedCornerShape(4.dp))) {
-                Box(Modifier.fillMaxWidth(frac).height(7.dp).background(Palette.Orange, RoundedCornerShape(4.dp)))
-            }
+        }
+        if (showGoalDialog) {
+            var goalText by remember { mutableStateOf(goalW?.let { kg(it) } ?: "") }
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { showGoalDialog = false },
+                title = { Text("Waga docelowa") },
+                text = {
+                    androidx.compose.material3.OutlinedTextField(
+                        value = goalText, onValueChange = { goalText = it },
+                        label = { Text("kg") }, singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
+                    )
+                },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(onClick = {
+                        goalText.replace(',', '.').toDoubleOrNull()?.let { app.settings.goalWeightKg = it; goalWState = it }
+                        showGoalDialog = false
+                    }) { Text("Zapisz") }
+                },
+                dismissButton = { androidx.compose.material3.TextButton(onClick = { showGoalDialog = false }) { Text("Anuluj") } }
+            )
         }
 
         InfoRow("Płeć", if (p.gender == Gender.MALE) "mężczyzna" else "kobieta")
         InfoRow("Wiek", "${p.ageYears} lat")
         InfoRow("Wzrost", "${p.heightCm} cm")
-        InfoRow("Waga", p.weightKg?.let { "$it kg" } ?: "—")
+        InfoRow("Waga", (currentW ?: p.weightKg)?.let { kg(it) + " kg" } ?: "—")
         InfoRow("Aktywność", activityLabel(p))
         InfoRow("Treningi/tydzień", "${p.daysPerWeek}")
         InfoRow("Cel", goalLabel(p.goal))

@@ -78,6 +78,12 @@ class SettingsStore(context: Context) {
         return "PLANNED" to 0L
     }
 
+    /** Liczba posiłków ze statusem EATEN danego dnia (do metryki adherencji). */
+    fun eatenCountForDay(dayKey: String): Int {
+        val fromStatus = mealEntries(dayKey).count { it.split('\u0001').getOrNull(1) == "EATEN" }
+        return if (fromStatus > 0) fromStatus else eatenMeals(dayKey).size
+    }
+
     fun setMealStatus(dayKey: String, name: String, status: String, logId: Long = 0L) {
         val filtered = mealEntries(dayKey).filterNot { it.startsWith("$name") }.toMutableSet()
         if (status != "PLANNED") filtered.add("$name$status$logId")
