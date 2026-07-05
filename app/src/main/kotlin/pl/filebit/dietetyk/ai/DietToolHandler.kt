@@ -1,9 +1,12 @@
 package pl.filebit.dietetyk.ai
 
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import pl.filebit.dietetyk.DietetykApp
+import pl.filebit.dietetyk.data.db.PlanEntity
 import pl.filebit.dietetyk.core.adapt.CheckInEngine
 import pl.filebit.dietetyk.core.calc.GoalPipeline
 import pl.filebit.dietetyk.core.model.ActivityLevel
@@ -37,6 +40,7 @@ class DietToolHandler(
             "save_profile" -> saveProfile(input, now)
             "get_history" -> history(now)
             "run_checkin" -> runCheckin(now)
+            "save_diet_plan" -> saveDietPlan(input, now)
             else -> ToolResult("Narzędzie '$name' będzie dostępne wkrótce.")
         }
     }
@@ -88,6 +92,22 @@ class DietToolHandler(
         val ctx = app.contextBuilder.build(now) ?: return ToolResult("Brak profilu — jesteśmy na etapie wywiadu.")
         val trend = if (ctx.weightTrend.hasEnoughData) "trend ${ctx.weightTrend.direction}" else "za mało pomiarów wagi"
         return ToolResult("Waga: ${ctx.latestWeightKg ?: "?"} kg, $trend. Trzymanie planu 14d: kcal ${ctx.adherence14d.avgKcalPct}%. Dni pełnych logów: ${ctx.completeLogDays14d}.")
+    }
+
+    private suspend fun saveDietPlan(input: JsonObject, now: Long): ToolResult {
+        val meals = input["meals"]?.let { it as? kotlinx.serialization.json.JsonArray }
+            ?: return ToolResult("Brak posiłków w planie.", isError = true)
+        if (meals.isEmpty()) return ToolResult("Plan jest pusty.", isError = true)
+        val sumKcal = meals.sumOf { (it as JsonObject).int("kcal") ?: 0 }
+        val target = app.profileRepo.get()?.let { p ->
+            GoalPipeline.compute(p, latestMeasuredWeightKg = app.weightRepo.latest()?.weightKg).kcal
+        } ?: sumKcal
+        // Lekka walidacja: suma dnia w granicach ±15% celu (pełna walidacja z bazą produktów — później).
+        val dev = if (target > 0) kotlin.math.abs(sumKcal - target) * 100 / target else 0
+        val planJson = kotlinx.serialization.json.buildJsonObject { put("meals", meals) }.toString()
+        app.database.planDao().upsert(PlanEntity(planJson = planJson, targetKcal = target, updatedAt = now, dirty = true))
+        val warn = if (dev > 15) " (uwaga: suma odbiega od celu o $dev% — rozważ korektę gramatur)" else ""
+        return ToolResult("Zapisałem plan: ${meals.size} posiłków, razem $sumKcal kcal (cel $target)$warn.")
     }
 
     private suspend fun runCheckin(now: Long): ToolResult {

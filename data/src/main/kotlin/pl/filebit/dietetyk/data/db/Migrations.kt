@@ -27,4 +27,16 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
     }
 }
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2)
+/** v2→v3: aktualny plan diety (JSON). */
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `diet_plan` (" +
+                "`id` INTEGER PRIMARY KEY NOT NULL, " +
+                "`planJson` TEXT NOT NULL, `targetKcal` INTEGER NOT NULL, " +
+                "`updatedAt` INTEGER NOT NULL, `dirty` INTEGER NOT NULL)"
+        )
+    }
+}
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3)

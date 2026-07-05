@@ -54,7 +54,7 @@ fun AppScaffold(app: DietetykApp) {
         Box(Modifier.padding(inner).fillMaxSize().background(Palette.Bg)) {
             when (tab) {
                 Tab.DZIS -> TodayScreen(app)
-                Tab.PLAN -> PlaceholderScreen("Plan tygodniowy", "Ułożony przez Dietetyka — przepisy i lista zakupów. Wkrótce.")
+                Tab.PLAN -> PlanScreen(app)
                 Tab.DIETETYK -> ChatScreen(app, Modifier.fillMaxSize())
                 Tab.POSTEPY -> ProgressScreen(app)
                 Tab.PROFIL -> ProfileScreen(app)

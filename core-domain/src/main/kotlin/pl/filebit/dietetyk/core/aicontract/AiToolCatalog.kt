@@ -51,8 +51,11 @@ object AiToolCatalog {
             readsData = true, emitsNumbers = true
         ),
         AiToolSpec(
-            "save_diet_plan", "Zapisz plan dnia/tygodnia. Plan przechodzi walidację (kcal/makro z bazy, HARD constraints) ZANIM się zapisze.",
-            listOf(AiToolParam("plan", "object", true, "posiłki per slot z przepisami i składnikami")),
+            "save_diet_plan", "Zapisz plan dnia. Suma kcal posiłków powinna być bliska celowi (calculate_targets).",
+            listOf(
+                AiToolParam("meals", "array", true,
+                    "tablica posiłków; każdy: {\"name\":\"Owsianka z malinami\",\"timeHint\":\"7:30\",\"kcal\":550,\"proteinG\":30,\"carbsG\":70,\"fatG\":12,\"ingredients\":\"płatki 60g, mleko 200ml, maliny 100g\"}")
+            ),
             mutating = true, emitsNumbers = true
         ),
         AiToolSpec(
