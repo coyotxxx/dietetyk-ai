@@ -41,18 +41,23 @@ fun ProgressScreen(app: DietetykApp) {
     var reloadKey by remember { mutableStateOf(0) }
     var showSheet by remember { mutableStateOf(false) }
     var range by remember { mutableStateOf(30) }
+    var profile by remember { mutableStateOf<pl.filebit.dietetyk.core.model.NutritionProfile?>(null) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     LaunchedEffect(reloadKey) {
         samples = app.weightRepo.since(System.currentTimeMillis() - 365L * 24 * 3600 * 1000)
+        profile = app.profileRepo.get()
         loaded = true
     }
 
     if (showSheet) {
         NewMeasurementSheet(
             onDismiss = { showSheet = false },
-            onSave = { kg ->
+            onSave = { kg, waistCm, bodyFatPct ->
                 scope.launch {
-                    app.weightRepo.add(pl.filebit.dietetyk.core.model.WeightSample(dateMs = System.currentTimeMillis(), weightKg = kg), System.currentTimeMillis())
+                    app.weightRepo.add(
+                        pl.filebit.dietetyk.core.model.WeightSample(dateMs = System.currentTimeMillis(), weightKg = kg, waistCm = waistCm, bodyFatPct = bodyFatPct),
+                        System.currentTimeMillis()
+                    )
                     showSheet = false
                     reloadKey++
                 }
@@ -70,11 +75,12 @@ fun ProgressScreen(app: DietetykApp) {
 
         val allSorted = samples.sortedBy { it.dateMs }
         val latest = allSorted.lastOrNull()?.weightKg
-        val startAll = allSorted.firstOrNull()?.weightKg
-        val delta = if (latest != null && startAll != null) latest - startAll else null
         val goalW = app.settings.goalWeightKg.takeIf { it > 0 }
         val now = System.currentTimeMillis()
         val ranged = allSorted.filter { it.dateMs >= now - range.toLong() * 24 * 3600 * 1000 }
+        // delta liczona w oknie (spójna z wykresem)
+        val startRanged = ranged.firstOrNull()?.weightKg
+        val delta = if (latest != null && startRanged != null) latest - startRanged else null
 
         // Karta wagi + delta
         Column(Modifier.fillMaxWidth().padding(top = 12.dp).background(Palette.Card, RoundedCornerShape(18.dp)).padding(18.dp)) {
@@ -90,22 +96,30 @@ fun ProgressScreen(app: DietetykApp) {
             }
         }
 
-        // Kafelki metryk 2×2
+        // Metryki 2×2
+        val reachedGoal = goalW != null && latest != null && ((profile?.goal == pl.filebit.dietetyk.core.model.DietGoalType.FAT_LOSS && latest <= goalW) || (latest != null && kotlin.math.abs(latest - goalW) < 0.3))
         val toGoal = if (goalW != null && latest != null) kotlin.math.abs(latest - goalW) else null
+        val waistVal = allSorted.lastOrNull { it.waistCm != null }?.waistCm
+        val bfVal = allSorted.lastOrNull { it.bodyFatPct != null }?.bodyFatPct
+            ?: profile?.let { p -> pl.filebit.dietetyk.core.calc.BodyFatEstimator.estimate(latest, p.heightCm, p.ageYears, p.gender, waistCm = waistVal)?.percent }
         val adherence = run {
             val today = java.time.LocalDate.now()
             val meals = app.settings.mealsPerDay
-            var eaten = 0
-            for (i in 0 until 7) {
+            var eaten = 0; var activeDays = 0
+            for (i in 0 until 14) {
                 val d = today.minusDays(i.toLong())
-                eaten += app.settings.eatenCountForDay("%04d%02d%02d".format(d.year, d.monthValue, d.dayOfMonth))
+                val c = app.settings.eatenCountForDay("%04d%02d%02d".format(d.year, d.monthValue, d.dayOfMonth))
+                if (c > 0) { eaten += c; activeDays++ }
             }
-            val denom = meals * 7
-            if (denom > 0) (eaten * 100 / denom).coerceIn(0, 100) else null
+            if (activeDays >= 2 && meals > 0) (eaten * 100 / (activeDays * meals)).coerceIn(0, 100) else null
         }
         Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            MetricTileP("Do celu", toGoal?.let { kgP(it) + " kg" } ?: "—", Palette.Orange, Modifier.weight(1f))
-            MetricTileP("Trzymanie planu", adherence?.let { "$it%" } ?: "—", Palette.Green, Modifier.weight(1f))
+            MetricTileP("Do celu", if (reachedGoal) "Cel! 🎯" else toGoal?.let { kgP(it) + " kg" } ?: "—", Palette.Orange, Modifier.weight(1f))
+            MetricTileP("Tkanka tłuszczowa", bfVal?.let { kgP(it) + "%" } ?: "—", Palette.Blue, Modifier.weight(1f))
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            MetricTileP("Obwód pasa", waistVal?.let { kgP(it) + " cm" } ?: "—", Palette.TextDark, Modifier.weight(1f))
+            MetricTileGradient("Trzymanie planu", adherence?.let { "$it%" } ?: "—", Modifier.weight(1f))
         }
 
         // Segmented 7/30/90
@@ -168,24 +182,50 @@ private fun MetricTileP(label: String, value: String, tint: androidx.compose.ui.
     }
 }
 
+@Composable
+private fun MetricTileGradient(label: String, value: String, modifier: Modifier) {
+    val white = androidx.compose.ui.graphics.Color.White
+    Column(
+        modifier.background(
+            androidx.compose.ui.graphics.Brush.linearGradient(listOf(Palette.Green, Palette.GreenDark)),
+            RoundedCornerShape(14.dp)
+        ).padding(14.dp)
+    ) {
+        Text(value, color = white, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+        Text(label, color = white.copy(alpha = 0.85f), fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+    }
+}
+
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-private fun NewMeasurementSheet(onDismiss: () -> Unit, onSave: (Double) -> Unit) {
+private fun NewMeasurementSheet(onDismiss: () -> Unit, onSave: (Double, Double?, Double?) -> Unit) {
     var text by remember { mutableStateOf("") }
+    var waist by remember { mutableStateOf("") }
+    var bodyfat by remember { mutableStateOf("") }
+    val dec = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal)
     androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Card) {
         Column(Modifier.fillMaxWidth().imePadding().padding(20.dp).padding(bottom = 20.dp)) {
-            Text("Nowy pomiar wagi", color = Palette.TextDark, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text("Nowy pomiar", color = Palette.TextDark, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             androidx.compose.material3.OutlinedTextField(
                 value = text, onValueChange = { text = it.replace(',', '.') },
-                label = { Text("Waga w kg") },
-                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
+                label = { Text("Waga w kg") }, keyboardOptions = dec,
                 modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+            )
+            androidx.compose.material3.OutlinedTextField(
+                value = waist, onValueChange = { waist = it.replace(',', '.') },
+                label = { Text("Obwód pasa w cm (opcjonalnie)") }, keyboardOptions = dec,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+            )
+            androidx.compose.material3.OutlinedTextField(
+                value = bodyfat, onValueChange = { bodyfat = it.replace(',', '.') },
+                label = { Text("Tkanka tłuszczowa % (opcjonalnie)") }, keyboardOptions = dec,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
             )
             val kg = text.toDoubleOrNull()
             Box(
                 Modifier.fillMaxWidth().padding(top = 16.dp)
                     .background(if (kg != null && kg in 30.0..350.0) Palette.Green else Palette.Line, RoundedCornerShape(14.dp))
-                    .clickable(enabled = kg != null && kg in 30.0..350.0) { onSave(kg!!) }
+                    .clickable(enabled = kg != null && kg in 30.0..350.0) { onSave(kg!!, waist.toDoubleOrNull(), bodyfat.toDoubleOrNull()) }
                     .padding(vertical = 14.dp),
                 contentAlignment = Alignment.Center
             ) { Text("Zapisz", color = androidx.compose.ui.graphics.Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold) }

@@ -21,7 +21,7 @@ fun NutritionProfile.toEntity(updatedAt: Long, dirty: Boolean = true): ProfileEn
     updatedAt = updatedAt, dirty = dirty
 )
 
-fun WeightEntity.toModel(): WeightSample = WeightSample(dateMs = dateMs, weightKg = weightKg)
+fun WeightEntity.toModel(): WeightSample = WeightSample(dateMs = dateMs, weightKg = weightKg, waistCm = waistCm, bodyFatPct = bodyFatPct)
 
 fun WeightSample.toEntity(updatedAt: Long, dirty: Boolean = true): WeightEntity =
-    WeightEntity(dateMs = dateMs, weightKg = weightKg, updatedAt = updatedAt, dirty = dirty)
+    WeightEntity(dateMs = dateMs, weightKg = weightKg, waistCm = waistCm, bodyFatPct = bodyFatPct, updatedAt = updatedAt, dirty = dirty)

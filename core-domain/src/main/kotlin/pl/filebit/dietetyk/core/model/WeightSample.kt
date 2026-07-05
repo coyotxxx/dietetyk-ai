@@ -8,5 +8,7 @@ package pl.filebit.dietetyk.core.model
  */
 data class WeightSample(
     val dateMs: Long,
-    val weightKg: Double
+    val weightKg: Double,
+    val waistCm: Double? = null,
+    val bodyFatPct: Double? = null
 )

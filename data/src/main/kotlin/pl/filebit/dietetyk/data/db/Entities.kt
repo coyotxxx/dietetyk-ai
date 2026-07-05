@@ -33,6 +33,8 @@ data class WeightEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val dateMs: Long,
     val weightKg: Double,
+    val waistCm: Double? = null,
+    val bodyFatPct: Double? = null,
     val updatedAt: Long = 0,
     val dirty: Boolean = false
 )
