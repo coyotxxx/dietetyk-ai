@@ -21,7 +21,7 @@ data class AppColors(
 )
 
 val LightColors = AppColors(
-    Bg = Color(0xFFE9E2D6),
+    Bg = Color(0xFFFAF7F2),
     Card = Color(0xFFFFFFFF),
     GreenTint = Color(0xFFEAF3EC),
     Green = Color(0xFF3E7C5B),
@@ -34,10 +34,10 @@ val LightColors = AppColors(
 )
 
 val DarkColors = AppColors(
-    Bg = Color(0xFF0E1512),
-    Card = Color(0xFF19211C),
+    Bg = Color(0xFF12150F),
+    Card = Color(0xFF1B211A),
     GreenTint = Color(0xFF16301F),
-    Green = Color(0xFF4C8E68),
+    Green = Color(0xFF5FA57D),
     GreenDark = Color(0xFF8FC0A3),
     Orange = Color(0xFFE0975A),
     Blue = Color(0xFF6BA3D4),
@@ -53,9 +53,13 @@ val Palette: AppColors
     @Composable
     get() = LocalAppColors.current
 
-/** Motyw aplikacji — dobiera paletę wg trybu systemowego. */
+/** Motyw aplikacji — "system" (wg telefonu), "light" lub "dark". */
 @Composable
-fun DietetykTheme(content: @Composable () -> Unit) {
-    val colors = if (isSystemInDarkTheme()) DarkColors else LightColors
-    CompositionLocalProvider(LocalAppColors provides colors) { content() }
+fun DietetykTheme(themeMode: String = "system", content: @Composable () -> Unit) {
+    val dark = when (themeMode) {
+        "light" -> false
+        "dark" -> true
+        else -> isSystemInDarkTheme()
+    }
+    CompositionLocalProvider(LocalAppColors provides if (dark) DarkColors else LightColors) { content() }
 }

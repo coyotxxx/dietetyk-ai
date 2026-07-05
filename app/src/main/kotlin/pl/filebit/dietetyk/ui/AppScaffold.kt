@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -84,12 +85,15 @@ private fun BottomBar(current: Tab, onSelect: (Tab) -> Unit) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.clickable { onSelect(t) }.padding(horizontal = 4.dp)
+                    .then(if (center) Modifier.offset(y = (-16).dp) else Modifier)
             ) {
                 if (center) {
                     Box(
-                        Modifier.size(44.dp).background(Palette.Green, CircleShape),
+                        Modifier.size(58.dp)
+                            .background(Palette.Bg, CircleShape).padding(4.dp)
+                            .background(Palette.Green, CircleShape),
                         contentAlignment = Alignment.Center
-                    ) { Icon(t.icon, t.label, tint = Color.White, modifier = Modifier.size(24.dp)) }
+                    ) { Icon(t.icon, t.label, tint = Color.White, modifier = Modifier.size(28.dp)) }
                 } else {
                     Icon(t.icon, t.label, tint = if (selected) Palette.Green else Palette.Muted, modifier = Modifier.size(24.dp))
                 }

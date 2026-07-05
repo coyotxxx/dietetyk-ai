@@ -4,6 +4,7 @@ import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -97,6 +98,18 @@ fun ProfileScreen(app: DietetykApp) {
         InfoRow("Tempo", "${p.paceKgPerWeek} kg/tydz")
 
         Text("Ustawienia", color = Palette.TextDark, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 20.dp, bottom = 4.dp))
+
+        Text("Motyw", color = Palette.Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("system" to "System", "light" to "Jasny", "dark" to "Ciemny").forEach { (mode, label) ->
+                val active = app.themeMode.value == mode
+                Box(
+                    Modifier.weight(1f).background(if (active) Palette.Green else Palette.Card, RoundedCornerShape(12.dp))
+                        .clickable { app.themeMode.value = mode; app.settings.themeMode = mode }.padding(vertical = 11.dp),
+                    contentAlignment = Alignment.Center
+                ) { Text(label, color = if (active) androidx.compose.ui.graphics.Color.White else Palette.TextDark, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+            }
+        }
 
         SettingRow("🔔 Powiadomienia (wizyty)", if (notifOn) "Włączone" else "Wyłączone") {
             notifOn = !notifOn; app.settings.notificationsEnabled = notifOn

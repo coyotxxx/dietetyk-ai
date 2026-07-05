@@ -31,6 +31,9 @@ class DietetykApp : Application() {
     val settings: SettingsStore by lazy { SettingsStore(this) }
     val offClient: OpenFoodFactsClient by lazy { OpenFoodFactsClient() }
 
+    /** Reaktywny tryb motywu ("system"/"light"/"dark") — zmiana odświeża całe UI. */
+    val themeMode by lazy { androidx.compose.runtime.mutableStateOf(settings.themeMode) }
+
     val profileRepo: ProfileRepository by lazy { ProfileRepository(database.profileDao()) }
     val weightRepo: WeightRepository by lazy { WeightRepository(database.weightDao()) }
 

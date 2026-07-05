@@ -29,6 +29,11 @@ class SettingsStore(context: Context) {
         get() = prefs.getString("user_name", "").orEmpty()
         set(v) { prefs.edit().putString("user_name", v).apply() }
 
+    /** Motyw: "system" | "light" | "dark". */
+    var themeMode: String
+        get() = prefs.getString("theme_mode", "system").orEmpty()
+        set(v) { prefs.edit().putString("theme_mode", v).apply() }
+
     /** Czy proaktywne powiadomienia (wizyty kontrolne) są włączone. */
     var notificationsEnabled: Boolean
         get() = prefs.getBoolean("notifications_enabled", true)
