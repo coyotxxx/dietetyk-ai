@@ -34,11 +34,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import pl.filebit.dietetyk.BuildConfig
 import pl.filebit.dietetyk.DietetykApp
+import pl.filebit.dietetyk.update.ApkInstaller
+import pl.filebit.dietetyk.update.UpdateChecker
+import pl.filebit.dietetyk.update.UpdateInfo
 import pl.filebit.dietetyk.core.calc.DailyMacroGoal
 import pl.filebit.dietetyk.core.calc.GoalPipeline
 import java.time.LocalDate
@@ -79,6 +86,11 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}) {
     }
 
     val unread by app.database.notificationDao().unreadCount().collectAsState(initial = 0)
+    var update by remember { mutableStateOf<UpdateInfo?>(null) }
+    var updating by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) { update = UpdateChecker.latest(BuildConfig.VERSION_NAME) }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
@@ -93,6 +105,20 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}) {
                         Text("$unread", color = androidx.compose.ui.graphics.Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     }
                 }
+            }
+        }
+
+        update?.let { u ->
+            Row(
+                Modifier.fillMaxWidth().padding(bottom = 12.dp).background(Palette.Green, RoundedCornerShape(14.dp))
+                    .clickable(enabled = !updating) {
+                        updating = true
+                        scope.launch { ApkInstaller.downloadAndInstall(context, u.apkUrl); updating = false }
+                    }.padding(14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("⬆️ Nowa wersja ${u.version} dostępna", color = androidx.compose.ui.graphics.Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text(if (updating) "Pobieram…" else "Pobierz", color = androidx.compose.ui.graphics.Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
             }
         }
 
