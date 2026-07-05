@@ -214,8 +214,33 @@ fun ProfileScreen(app: DietetykApp) {
             }
         }
         SettingRow("🔑 Klucz Claude API", "Zmień ›") { showKeyDialog = true }
-        SettingRow("💾 Kopia zapasowa", "Udostępnij ›") {
-            Backup.exportShareIntent(ctx, app)?.let { ctx.startActivity(Intent.createChooser(it, "Kopia zapasowa")) }
+        var showExportDialog by remember { mutableStateOf(false) }
+        var includeApiKey by remember { mutableStateOf(true) }
+        SettingRow("💾 Kopia zapasowa", "Udostępnij ›") { showExportDialog = true }
+        if (showExportDialog) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { showExportDialog = false },
+                title = { Text("Kopia zapasowa") },
+                text = {
+                    Column {
+                        Text("Kopia zawiera profil, plan, pomiary, historię i ustawienia.", fontSize = 14.sp)
+                        Row(Modifier.fillMaxWidth().padding(top = 12.dp).clickable { includeApiKey = !includeApiKey }, verticalAlignment = Alignment.CenterVertically) {
+                            androidx.compose.material3.Checkbox(checked = includeApiKey, onCheckedChange = { includeApiKey = it })
+                            Column(Modifier.padding(start = 4.dp)) {
+                                Text("Dołącz klucz API", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Text("Potrzebny do rozmów — trzymaj plik bezpiecznie.", fontSize = 12.sp, color = Palette.Muted)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(onClick = {
+                        showExportDialog = false
+                        Backup.exportShareIntent(ctx, app, includeApiKey)?.let { ctx.startActivity(Intent.createChooser(it, "Kopia zapasowa")) }
+                    }) { Text("Udostępnij") }
+                },
+                dismissButton = { androidx.compose.material3.TextButton(onClick = { showExportDialog = false }) { Text("Anuluj") } }
+            )
         }
 
         var pendingRestoreUri by remember { mutableStateOf<android.net.Uri?>(null) }
@@ -228,7 +253,7 @@ fun ProfileScreen(app: DietetykApp) {
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { pendingRestoreUri = null },
                 title = { Text("Przywrócić kopię?") },
-                text = { Text("Obecne dane zostaną zastąpione danymi z kopii. Zrobimy kopię bezpieczeństwa, a aplikacja uruchomi się ponownie. Klucz API i ustawienia aplikacji nie są częścią kopii.") },
+                text = { Text("Obecne dane zostaną zastąpione danymi z kopii (profil, plan, pomiary, historia, ustawienia). Zrobimy kopię bezpieczeństwa, a aplikacja uruchomi się ponownie.") },
                 confirmButton = {
                     androidx.compose.material3.TextButton(onClick = {
                         val r = Backup.restoreFromUri(ctx, uri)
