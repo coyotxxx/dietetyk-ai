@@ -1,6 +1,7 @@
 package pl.filebit.dietetyk.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -56,8 +57,8 @@ fun ActionCard(card: CardData, onAction: (String) -> Unit) {
 
 @Composable
 private fun CardShell(badge: String?, title: String?, subtitle: String?, content: @Composable () -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(top = 4.dp).background(Palette.Card, RoundedCornerShape(20.dp)).padding(16.dp)) {
-        if (badge != null) Text("🌱 $badge".trim(), color = Palette.Green, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
+    Column(Modifier.fillMaxWidth().padding(top = 4.dp, start = 32.dp).background(Palette.Card, RoundedCornerShape(20.dp)).padding(16.dp)) {
+        if (badge != null) Text(badge, color = Palette.Green, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
         if (title != null) Text(title, color = Palette.TextDark, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = if (badge != null) 4.dp else 0.dp))
         if (subtitle != null) Text(subtitle, color = Palette.Muted, fontSize = 12.sp)
         content()
@@ -105,12 +106,15 @@ private fun CardActions(actions: List<JsonObject>, onAction: (String) -> Unit) {
         actions.take(3).forEachIndexed { i, a ->
             val label = a.str("label") ?: "OK"
             val send = a.str("send") ?: label
-            val primary = i == 0
+            val bg = when (i) { 0 -> Palette.Green; 1 -> Palette.GreenTint; else -> Color.Transparent }
+            val fg = when (i) { 0 -> Color.White; 1 -> Palette.GreenDark; else -> Palette.Muted }
             Box(
-                Modifier.weight(1f).background(if (primary) Palette.Green else Palette.GreenTint, RoundedCornerShape(12.dp))
+                Modifier.weight(1f)
+                    .then(if (i >= 2) Modifier.border(1.dp, Palette.Line, RoundedCornerShape(12.dp)) else Modifier)
+                    .background(bg, RoundedCornerShape(12.dp))
                     .clickable { onAction(send) }.padding(vertical = 10.dp),
                 contentAlignment = Alignment.Center
-            ) { Text(label, color = if (primary) Color.White else Palette.GreenDark, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
+            ) { Text(label, color = fg, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
         }
     }
 }
@@ -118,11 +122,12 @@ private fun CardActions(actions: List<JsonObject>, onAction: (String) -> Unit) {
 // === KARTY ===
 
 @Composable
-private fun MealPlanCard(j: JsonObject, onAction: (String) -> Unit) = CardShell(j.str("title") ?: "Propozycja planu", null, j.str("subtitle")) {
+private fun MealPlanCard(j: JsonObject, onAction: (String) -> Unit) = CardShell("🌱 ${j.str("title") ?: "Propozycja planu"}", null, j.str("subtitle")) {
     Column(Modifier.padding(top = 8.dp)) {
         j.arr("meals").forEach { m -> ListRow(m.str("emoji"), m.str("name") ?: "Posiłek", m.str("meta"), m.num("kcal")?.let { "$it kcal" }) }
     }
     j["totals"]?.let { (it as? JsonObject) }?.let { t ->
+        Box(Modifier.fillMaxWidth().padding(top = 10.dp).height(1.dp).background(Palette.Line))
         Text("Razem ${t.num("kcal") ?: 0} kcal   ·   B ${t.num("p") ?: 0} · W ${t.num("c") ?: 0} · T ${t.num("f") ?: 0}",
             color = Palette.TextDark, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
     }
@@ -144,7 +149,15 @@ private fun FoodRecognitionCard(j: JsonObject, onAction: (String) -> Unit) = Car
 private fun DaySummaryCard(j: JsonObject) = CardShell(j.str("badge") ?: "Podsumowanie dnia", j.str("title"), j.str("subtitle")) {
     j.str("score")?.let { Text(it, color = Palette.Green, fontSize = 40.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 4.dp)) }
     j.str("comment")?.let { Text(it, color = Palette.TextDark, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp)) }
-    j.arr("macros").forEach { m -> MacroBar(m.str("label") ?: "", m.num("value") ?: 0, m.num("target") ?: 0, Palette.Green) }
+    j.arr("macros").forEach { m ->
+        val label = m.str("label") ?: ""
+        val color = when {
+            label.startsWith("Bia", true) -> Palette.Green
+            label.startsWith("Węg", true) || label.startsWith("Weg", true) -> Palette.Orange
+            else -> Palette.Blue
+        }
+        MacroBar(label, m.num("value") ?: 0, m.num("target") ?: 0, color)
+    }
 }
 
 @Composable

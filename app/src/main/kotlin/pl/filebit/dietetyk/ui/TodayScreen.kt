@@ -184,17 +184,34 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
         }
 
         if (meals.isNotEmpty()) {
-            Text("Posiłki dnia", color = Palette.TextDark, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 20.dp, bottom = 8.dp))
+            val doneCount = meals.count { app.settings.mealStatus(dayKey, it.name).first == "EATEN" }
+            Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("Posiłki dnia", color = Palette.TextDark, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text("$doneCount z ${meals.size}", color = Palette.Muted, fontSize = 13.sp)
+            }
             meals.forEachIndexed { i, m ->
-                MealRow(i, m, eaten.contains(m.name)) {
-                    scope.launch {
-                        app.database.energyLogDao().insert(
-                            EnergyLogEntity(dateMs = System.currentTimeMillis(), kcalConsumed = m.kcal, isComplete = false, proteinG = m.p, carbsG = m.c, fatG = m.f)
-                        )
-                        app.settings.markMealEaten(dayKey, m.name)
-                        reloadKey++
+                val (status, logId) = app.settings.mealStatus(dayKey, m.name)
+                MealRow(
+                    index = i, meal = m, status = status,
+                    onEat = {
+                        scope.launch {
+                            val id = app.database.energyLogDao().insert(
+                                EnergyLogEntity(dateMs = System.currentTimeMillis(), kcalConsumed = m.kcal, isComplete = false, proteinG = m.p, carbsG = m.c, fatG = m.f)
+                            )
+                            app.settings.setMealStatus(dayKey, m.name, "EATEN", id)
+                            reloadKey++
+                        }
+                    },
+                    onSkip = { app.settings.setMealStatus(dayKey, m.name, "SKIPPED"); reloadKey++; onGoToChat() },
+                    onReplace = { app.settings.setMealStatus(dayKey, m.name, "REPLACED"); reloadKey++; onGoToChat() },
+                    onUndo = {
+                        scope.launch {
+                            if (logId > 0) app.database.energyLogDao().deleteById(logId)
+                            app.settings.setMealStatus(dayKey, m.name, "PLANNED")
+                            reloadKey++
+                        }
                     }
-                }
+                )
             }
         }
     }
@@ -232,22 +249,38 @@ private fun WaterBtn(label: String, modifier: Modifier, onClick: () -> Unit) {
 }
 
 @Composable
-private fun MealRow(index: Int, meal: DayMeal, isEaten: Boolean, onEat: () -> Unit) {
+private fun MealRow(index: Int, meal: DayMeal, status: String, onEat: () -> Unit, onSkip: () -> Unit, onReplace: () -> Unit, onUndo: () -> Unit) {
+    var menu by remember { mutableStateOf(false) }
+    val skipped = status == "SKIPPED"
     Row(
         Modifier.fillMaxWidth().padding(bottom = 8.dp).background(Palette.Card, RoundedCornerShape(14.dp)).padding(14.dp),
         horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f).padding(end = 8.dp)) {
             Text("Posiłek ${index + 1}" + (if (meal.time.isNotBlank()) " · ${meal.time}" else ""), color = Palette.Muted, fontSize = 11.sp)
-            Text(meal.name, color = Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 1.dp))
+            Text(
+                meal.name, color = if (skipped) Palette.Muted else Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                textDecoration = if (skipped) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
+                modifier = Modifier.padding(top = 1.dp)
+            )
         }
         Column(horizontalAlignment = Alignment.End) {
             Text("${meal.kcal} kcal", color = Palette.Orange, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
-            if (isEaten) {
-                Text("✓ Zjadłem", color = Palette.Green, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            } else {
-                Box(Modifier.padding(top = 3.dp).background(Palette.GreenTint, RoundedCornerShape(8.dp)).clickable { onEat() }.padding(horizontal = 10.dp, vertical = 4.dp)) {
-                    Text("Zjadłem", color = Palette.GreenDark, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Box {
+                val (label, color) = when (status) {
+                    "EATEN" -> "✓ Zjadłem" to Palette.Green
+                    "SKIPPED" -> "✕ Pominięty" to Palette.Muted
+                    "REPLACED" -> "🔄 Coś innego" to Palette.Blue
+                    else -> "⏳ Zjadłem?" to Palette.GreenDark
+                }
+                Box(Modifier.padding(top = 3.dp).background(Palette.GreenTint, RoundedCornerShape(8.dp)).clickable { menu = true }.padding(horizontal = 10.dp, vertical = 4.dp)) {
+                    Text(label, color = color, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+                androidx.compose.material3.DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    androidx.compose.material3.DropdownMenuItem(text = { Text("✓ Zjadłem") }, onClick = { menu = false; onEat() })
+                    androidx.compose.material3.DropdownMenuItem(text = { Text("✕ Pomiń — powiem dlaczego") }, onClick = { menu = false; onSkip() })
+                    androidx.compose.material3.DropdownMenuItem(text = { Text("📷 Zjadłem coś innego") }, onClick = { menu = false; onReplace() })
+                    if (status != "PLANNED") androidx.compose.material3.DropdownMenuItem(text = { Text("↩ Cofnij") }, onClick = { menu = false; onUndo() })
                 }
             }
         }

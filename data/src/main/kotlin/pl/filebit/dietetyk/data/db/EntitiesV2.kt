@@ -40,6 +40,9 @@ interface EnergyLogDao {
 
     @Insert
     suspend fun insert(log: EnergyLogEntity): Long
+
+    @Query("DELETE FROM energy_logs WHERE id = :id")
+    suspend fun deleteById(id: Long)
 }
 
 @Dao

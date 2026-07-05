@@ -39,10 +39,29 @@ class SettingsStore(context: Context) {
         get() = prefs.getBoolean("notifications_enabled", true)
         set(v) { prefs.edit().putBoolean("notifications_enabled", v).apply() }
 
-    /** Zjedzone posiłki danego dnia (po nazwie) — status na Dziś. */
+    /** Zjedzone posiłki danego dnia (stary format, do migracji). */
     fun eatenMeals(dayKey: String): Set<String> = prefs.getStringSet("eaten_$dayKey", emptySet()) ?: emptySet()
-    fun markMealEaten(dayKey: String, name: String) {
-        prefs.edit().putStringSet("eaten_$dayKey", eatenMeals(dayKey) + name).apply()
+
+    /**
+     * Status posiłku danego dnia. Zapis: StringSet z wpisami "nameSTATUSlogId".
+     * STATUS: EATEN | SKIPPED | REPLACED (brak wpisu = PLANNED). logId = id wpisu energy_logs (do cofania).
+     */
+    private fun mealEntries(dayKey: String): Set<String> = prefs.getStringSet("mealstatus_$dayKey", emptySet()) ?: emptySet()
+
+    /** Zwraca (status, logId). Wsteczna zgodność: stary `eaten_` traktowany jako EATEN. */
+    fun mealStatus(dayKey: String, name: String): Pair<String, Long> {
+        mealEntries(dayKey).forEach { e ->
+            val p = e.split("")
+            if (p.getOrNull(0) == name) return (p.getOrElse(1) { "PLANNED" }) to (p.getOrElse(2) { "0" }.toLongOrNull() ?: 0L)
+        }
+        if (eatenMeals(dayKey).contains(name)) return "EATEN" to 0L
+        return "PLANNED" to 0L
+    }
+
+    fun setMealStatus(dayKey: String, name: String, status: String, logId: Long = 0L) {
+        val filtered = mealEntries(dayKey).filterNot { it.startsWith("$name") }.toMutableSet()
+        if (status != "PLANNED") filtered.add("$name$status$logId")
+        prefs.edit().putStringSet("mealstatus_$dayKey", filtered).apply()
     }
 
     private companion object { const val KEY_API = "claude_api_key" }
