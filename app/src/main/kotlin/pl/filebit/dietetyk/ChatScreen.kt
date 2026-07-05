@@ -48,7 +48,7 @@ private val Green = Color(0xFF3E7C5B)
 private val TextDark = Color(0xFF23261F)
 
 @Composable
-fun ChatScreen(app: DietetykApp) {
+fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier) {
     var apiKey by remember { mutableStateOf(app.settings.apiKey) }
     if (apiKey.isBlank()) {
         ApiKeyGate(onSaved = { app.settings.apiKey = it; apiKey = it })
@@ -64,7 +64,7 @@ fun ChatScreen(app: DietetykApp) {
     var input by remember { mutableStateOf("") }
     var sending by remember { mutableStateOf(false) }
 
-    Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().imePadding().padding(12.dp)) {
+    Column(modifier.fillMaxSize().background(Bg).imePadding().padding(12.dp)) {
         Text("Dietetyk AI", color = TextDark, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
         LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(messages) { msg -> Bubble(msg) }
