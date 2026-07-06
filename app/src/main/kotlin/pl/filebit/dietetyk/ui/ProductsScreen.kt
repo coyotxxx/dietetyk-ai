@@ -1,6 +1,7 @@
 package pl.filebit.dietetyk.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,6 +15,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,6 +30,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -103,19 +109,44 @@ private fun CategoryHeader(text: String) {
 
 @Composable
 private fun ProductRow(p: FoodProductEntity, onTap: () -> Unit, onStar: () -> Unit) {
+    val accent = when (categoryHue(p.category)) {
+        1 -> Palette.Orange
+        2 -> Palette.Blue
+        3 -> Palette.Muted
+        else -> Palette.Green
+    }
+    val dark = Palette.isDark
+    val tileBg = accent.copy(alpha = if (dark) 0.24f else 0.16f)
+    val tileBorder = accent.copy(alpha = if (dark) 0.40f else 0.28f)
     Row(
         Modifier.fillMaxWidth().padding(bottom = 8.dp).card(14.dp).background(Palette.Card, RoundedCornerShape(14.dp)).clickable { onTap() }.padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(42.dp).background(Palette.GreenTint, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
-            Text(catEmoji(p.category), fontSize = 20.sp)
-        }
+        Box(
+            Modifier.size(44.dp).background(tileBg, RoundedCornerShape(14.dp)).border(1.dp, tileBorder, RoundedCornerShape(14.dp)),
+            contentAlignment = Alignment.Center
+        ) { Text(catEmoji(p.category), fontSize = 22.sp) }
         Column(Modifier.weight(1f).padding(start = 12.dp)) {
             Text(p.name, color = Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
             Text("${p.kcal} kcal · B ${fmt(p.proteinG)} · W ${fmt(p.carbsG)} · T ${fmt(p.fatG)} /100g", color = Palette.Muted, fontSize = 12.sp, maxLines = 1)
         }
-        Text(if (p.favorite) "★" else "☆", color = if (p.favorite) Palette.Green else Palette.Muted, fontSize = 22.sp, modifier = Modifier.clickable { onStar() }.padding(start = 6.dp))
+        Icon(
+            imageVector = if (p.favorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
+            contentDescription = if (p.favorite) "Ulubiony" else "Dodaj do ulubionych",
+            tint = if (p.favorite) Palette.Green else Palette.Muted,
+            modifier = Modifier.clip(androidx.compose.foundation.shape.CircleShape).clickable { onStar() }.padding(8.dp).size(22.dp)
+        )
     }
+}
+
+/** Grupowanie kategorii w 3 akcenty + neutral (spec Fable): 0=Green, 1=Orange, 2=Blue, 3=Neutral. */
+private fun categoryHue(cat: String): Int = when {
+    cat.contains("mię", true) || cat.contains("mie", true) || cat.contains("ryb", true) ||
+        cat.contains("tłuszcz", true) || cat.contains("tluszcz", true) || cat.contains("olej", true) ||
+        cat.contains("orzech", true) || cat.contains("drób", true) || cat.contains("drob", true) -> 1
+    cat.contains("nabia", true) || cat.contains("jaj", true) || cat.contains("ser", true) || cat.contains("mleko", true) -> 2
+    cat.contains("inne", true) || cat.contains("przypraw", true) -> 3
+    else -> 0 // warzywa, owoce, strączki, zboża + reszta roślinna
 }
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
