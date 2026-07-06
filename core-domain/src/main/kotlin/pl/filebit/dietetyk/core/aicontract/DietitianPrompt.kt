@@ -131,6 +131,8 @@ object DietitianPrompt {
             append("Dla pytań KATEGORYCZNYCH (cel, płeć, aktywność, liczba posiłków, sprzęt) ZAWSZE dołączaj przyciski wyboru ")
             append("`[[akcje: … | … ]]`, żeby user klikał zamiast pisać. Sprzęt = wielokrotny wybór (może kliknąć kilka). ")
             append("Liczby (wiek/wzrost/waga) — user wpisuje. ")
+            append("WAŻNE: wywołuj save_profile PO KAŻDEJ odpowiedzi z tym, co właśnie ustaliłeś (merge dopełni resztę) ")
+            append("— nie czekaj z zapisem do końca, żeby pasek postępu rósł płynnie. ")
             append("Zapisuj odpowiedzi przez save_profile na bieżąco. Gdy masz komplet obowiązkowych ")
             append("(cel, płeć, wiek, wzrost, waga, aktywność) — pokaż kartę interview_summary i zaproponuj plan.")
             if (state.openInterviewTopics.isNotEmpty()) {

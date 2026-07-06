@@ -2,6 +2,7 @@ package pl.filebit.dietetyk.ui
 
 import android.content.Intent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -47,6 +48,8 @@ fun ProfileScreen(app: DietetykApp, onBrowseProducts: () -> Unit = {}) {
     var currentW by remember { mutableStateOf<Double?>(null) }
     var startW by remember { mutableStateOf<Double?>(null) }
     var meals by remember { androidx.compose.runtime.mutableIntStateOf(4) }
+    var showEquip by remember { mutableStateOf(false) }
+    var equip by remember { mutableStateOf(app.settings.kitchenEquipment) }
     LaunchedEffect(Unit) {
         val prof = app.profileRepo.get()
         profile = prof
@@ -186,6 +189,11 @@ fun ProfileScreen(app: DietetykApp, onBrowseProducts: () -> Unit = {}) {
 
         SettingRow("🥫 Baza produktów", "Przeglądaj ›") { onBrowseProducts() }
 
+        SettingRow("🍳 Sprzęt kuchenny", equipmentSummary(equip)) { showEquip = true }
+        if (showEquip) EquipmentDialog(equip, onDismiss = { showEquip = false }) { newEq ->
+            equip = newEq; app.settings.kitchenEquipment = newEq; showEquip = false
+        }
+
         Text("Ustawienia", color = Palette.TextDark, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 20.dp, bottom = 4.dp))
 
         Text("Motyw", color = Palette.Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
@@ -314,6 +322,42 @@ fun ProfileScreen(app: DietetykApp, onBrowseProducts: () -> Unit = {}) {
             modifier = Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 8.dp)
         )
     }
+}
+
+private val EQUIP_OPTIONS = listOf("airfryer" to "Air Fryer", "thermomix" to "Thermomix", "piekarnik" to "Piekarnik", "mikrofalowka" to "Mikrofalówka")
+
+private fun equipmentSummary(equip: String): String {
+    val names = equip.split(",").mapNotNull { k -> EQUIP_OPTIONS.firstOrNull { it.first == k.trim() }?.second }
+    return if (names.isEmpty()) "Kuchenka ›" else names.joinToString(", ") + " ›"
+}
+
+@Composable
+private fun EquipmentDialog(current: String, onDismiss: () -> Unit, onSave: (String) -> Unit) {
+    val selected = remember { androidx.compose.runtime.mutableStateListOf<String>().apply { addAll(current.split(",").map { it.trim() }.filter { it.isNotBlank() }) } }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Sprzęt kuchenny") },
+        text = {
+            Column {
+                Text("Kuchenka i piekarnik są zawsze dostępne. Zaznacz dodatkowy sprzęt — dietetyk pokaże jego warianty w przepisach.", color = Palette.Muted, fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
+                EQUIP_OPTIONS.forEach { (key, label) ->
+                    val on = selected.contains(key)
+                    Row(
+                        Modifier.fillMaxWidth().clickable { if (on) selected.remove(key) else selected.add(key) }.padding(vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            Modifier.size(22.dp).background(if (on) Palette.Green else Palette.Card, RoundedCornerShape(6.dp)).border(1.dp, if (on) Palette.Green else Palette.Line, RoundedCornerShape(6.dp)),
+                            contentAlignment = Alignment.Center
+                        ) { if (on) Text("✓", color = androidx.compose.ui.graphics.Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
+                        Text(label, color = Palette.TextDark, fontSize = 15.sp, modifier = Modifier.padding(start = 12.dp))
+                    }
+                }
+            }
+        },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { onSave(selected.joinToString(",")) }) { Text("Zapisz") } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Anuluj") } }
+    )
 }
 
 @Composable

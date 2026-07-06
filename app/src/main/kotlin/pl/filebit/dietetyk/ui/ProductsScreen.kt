@@ -64,8 +64,10 @@ fun ProductsScreen(app: DietetykApp, onBack: () -> Unit) {
 
     val toggleStar: (FoodProductEntity) -> Unit = { p -> scope.launch { app.database.foodProductDao().setFavorite(p.id, !p.favorite) } }
 
-    if (showAdd) AddProductDialog(app) { showAdd = false }
-    detail?.let { p -> ProductDetailSheet(app, p, onDismiss = { detail = null }) }
+    var editProduct by remember { mutableStateOf<FoodProductEntity?>(null) }
+    if (showAdd) ProductFormDialog(app, null) { showAdd = false }
+    editProduct?.let { ep -> ProductFormDialog(app, ep) { editProduct = null } }
+    detail?.let { p -> ProductDetailSheet(app, p, onDismiss = { detail = null }, onEdit = { detail = null; editProduct = it }) }
 
     // Tytuł nagłówka + akcja wstecz zależnie od poziomu.
     val headerTitle = when {
@@ -194,7 +196,7 @@ private fun ProductRow(p: FoodProductEntity, onTap: () -> Unit, onStar: () -> Un
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-private fun ProductDetailSheet(app: DietetykApp, p: FoodProductEntity, onDismiss: () -> Unit) {
+private fun ProductDetailSheet(app: DietetykApp, p: FoodProductEntity, onDismiss: () -> Unit, onEdit: (FoodProductEntity) -> Unit) {
     var grams by remember { mutableStateOf("100") }
     val scope = rememberCoroutineScope()
     val g = grams.toIntOrNull() ?: 0
@@ -235,12 +237,13 @@ private fun ProductDetailSheet(app: DietetykApp, p: FoodProductEntity, onDismiss
                 contentAlignment = Alignment.Center
             ) { Text("Zapisz do dziennika · $kcal kcal", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold) }
 
-            // Usuwanie tylko produktów dodanych przez usera/skan (seed = baseline, nie ruszać).
+            // Edycja/usuwanie tylko produktów usera/skanu (seed = baseline, nie ruszać).
             if (p.source != "seed") {
-                Text("🗑 Usuń produkt", color = Palette.Error, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 16.dp).clickable {
-                        scope.launch { app.database.foodProductDao().delete(p.id); onDismiss() }
-                    })
+                Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text("✏️ Edytuj", color = Palette.Green, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { onEdit(p) })
+                    Text("🗑 Usuń produkt", color = Palette.Error, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable { scope.launch { app.database.foodProductDao().delete(p.id); onDismiss() } })
+                }
             }
         }
     }
@@ -248,18 +251,19 @@ private fun ProductDetailSheet(app: DietetykApp, p: FoodProductEntity, onDismiss
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-private fun AddProductDialog(app: DietetykApp, onDismiss: () -> Unit) {
-    var name by remember { mutableStateOf("") }
-    var kcal by remember { mutableStateOf("") }
-    var prot by remember { mutableStateOf("") }
-    var carb by remember { mutableStateOf("") }
-    var fat by remember { mutableStateOf("") }
-    var cat by remember { mutableStateOf("Inne") }
+private fun ProductFormDialog(app: DietetykApp, existing: FoodProductEntity?, onDismiss: () -> Unit) {
+    fun d(v: Double) = if (v == 0.0) "" else (if (v % 1.0 == 0.0) "%.0f" else "%.1f").format(v)
+    var name by remember { mutableStateOf(existing?.name ?: "") }
+    var kcal by remember { mutableStateOf(existing?.kcal?.takeIf { it > 0 }?.toString() ?: "") }
+    var prot by remember { mutableStateOf(existing?.let { d(it.proteinG) } ?: "") }
+    var carb by remember { mutableStateOf(existing?.let { d(it.carbsG) } ?: "") }
+    var fat by remember { mutableStateOf(existing?.let { d(it.fatG) } ?: "") }
+    var cat by remember { mutableStateOf(existing?.category ?: "Inne") }
     val scope = rememberCoroutineScope()
     val num = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Nowy produkt") },
+        title = { Text(if (existing == null) "Nowy produkt" else "Edytuj produkt") },
         text = {
             Column {
                 Text("Wartości na 100 g surowego produktu.", color = Palette.Muted, fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
@@ -279,20 +283,27 @@ private fun AddProductDialog(app: DietetykApp, onDismiss: () -> Unit) {
             androidx.compose.material3.TextButton(onClick = {
                 val k = kcal.toIntOrNull()
                 if (name.isNotBlank() && k != null) {
+                    val category = cat.trim().let { if (it.isBlank() || it == "Inne") inferCategory(name) else it }
                     scope.launch {
-                        app.database.foodProductDao().insert(
-                            FoodProductEntity(
+                        val dao = app.database.foodProductDao()
+                        if (existing == null) {
+                            dao.insert(FoodProductEntity(
                                 name = name.trim(), nameNorm = pl.filebit.dietetyk.data.db.FoodProductSeed.normalize(name),
                                 kcal = k, proteinG = prot.toDoubleOrNull() ?: 0.0, carbsG = carb.toDoubleOrNull() ?: 0.0,
-                                fatG = fat.toDoubleOrNull() ?: 0.0,
-                                category = cat.trim().let { if (it.isBlank() || it == "Inne") inferCategory(name) else it },
-                                source = "user"
-                            )
-                        )
+                                fatG = fat.toDoubleOrNull() ?: 0.0, category = category, source = "user"
+                            ))
+                        } else {
+                            dao.update(existing.copy(
+                                name = name.trim(), nameNorm = pl.filebit.dietetyk.data.db.FoodProductSeed.normalize(name),
+                                kcal = k, proteinG = prot.toDoubleOrNull() ?: 0.0, carbsG = carb.toDoubleOrNull() ?: 0.0,
+                                fatG = fat.toDoubleOrNull() ?: 0.0, category = category
+                                // id, source, barcode, favorite, imageUrl — zachowane
+                            ))
+                        }
                     }
                     onDismiss()
                 }
-            }) { Text("Dodaj") }
+            }) { Text(if (existing == null) "Dodaj" else "Zapisz") }
         },
         dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Anuluj") } }
     )
