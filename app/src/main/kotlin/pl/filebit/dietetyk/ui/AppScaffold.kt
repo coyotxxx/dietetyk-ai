@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -53,13 +54,15 @@ fun AppScaffold(app: DietetykApp) {
         OnboardingScreen { app.settings.onboardingDone = true; onboarded = true }
         return
     }
-    var tab by remember { mutableStateOf(Tab.DIETETYK) }
+    // Start: onboardowany (ma profil) → Dziś (konkret); pierwszy raz (brak profilu) → Dietetyk (wywiad).
+    var tab by remember { mutableStateOf<Tab?>(null) }
+    LaunchedEffect(Unit) { if (tab == null) tab = if (app.profileRepo.get() != null) Tab.DZIS else Tab.DIETETYK }
     var showNotifs by remember { mutableStateOf(false) }
     var showProducts by remember { mutableStateOf(false) }
     val overlay = showNotifs || showProducts
     Scaffold(
         containerColor = Palette.Bg,
-        bottomBar = { if (!overlay) BottomBar(tab) { tab = it } }
+        bottomBar = { if (!overlay && tab != null) BottomBar(tab!!) { tab = it } }
     ) { inner ->
         Box(Modifier.padding(inner).fillMaxSize().background(Palette.Bg)) {
             when {
@@ -71,6 +74,7 @@ fun AppScaffold(app: DietetykApp) {
                     Tab.DIETETYK -> ChatScreen(app, Modifier.fillMaxSize())
                     Tab.POSTEPY -> ProgressScreen(app, onGoToChat = { tab = Tab.DIETETYK })
                     Tab.PROFIL -> ProfileScreen(app, onBrowseProducts = { showProducts = true })
+                    null -> {}
                 }
             }
         }
