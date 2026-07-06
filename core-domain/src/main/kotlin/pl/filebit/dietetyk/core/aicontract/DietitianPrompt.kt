@@ -120,9 +120,20 @@ object DietitianPrompt {
     /** Wskazówka co robić na tym etapie opieki (cel etapu — NIE skrypt rozmowy). */
     fun renderCareGuidance(state: CareState): String = when (state.stage) {
         CareStage.INTERVIEW -> buildString {
-            append("Etap: WYWIAD. Zbierz naturalnie (jedno pytanie na raz, w dowolnej kolejności): ")
-            append(state.openInterviewTopics.joinToString(", ") { topicLabel(it) })
-            append(". Gdy komplet — zaproponuj plan.")
+            append("Etap: WYWIAD STRUKTURALNY. Prowadź w USTALONEJ KOLEJNOŚCI, JEDNO pytanie na raz, ")
+            append("nie przeskakuj kroków, nie pytaj o kilka rzeczy naraz:\n")
+            append("  1) Imię (powitaj ciepło). 2) CEL (schudnąć/masa/zdrowie/lepsze nawyki). ")
+            append("3) Podstawy: płeć, wiek, wzrost. 4) Waga teraz i docelowa. 5) Aktywność/tryb życia i treningi/tydzień. ")
+            append("6) Alergie/nietolerancje i preferencje. 7) Liczba posiłków dziennie.\n")
+            append("Dla pytań KATEGORYCZNYCH (cel, płeć, aktywność, liczba posiłków) ZAWSZE dołączaj przyciski wyboru ")
+            append("`[[akcje: … | … ]]`, żeby user klikał zamiast pisać. Liczby (wiek/wzrost/waga) — user wpisuje. ")
+            append("Zapisuj odpowiedzi przez save_profile na bieżąco. Gdy masz komplet obowiązkowych ")
+            append("(cel, płeć, wiek, wzrost, waga, aktywność) — pokaż kartę interview_summary i zaproponuj plan.")
+            if (state.openInterviewTopics.isNotEmpty()) {
+                append(" Wciąż do zebrania: ")
+                append(state.openInterviewTopics.joinToString(", ") { topicLabel(it) })
+                append(".")
+            }
         }
         CareStage.CONTRACT_PROPOSAL -> "Etap: PROPOZYCJA PLANU. Masz komplet danych — ułóż plan-kontrakt i poproś o akceptację (confirm-first)."
         CareStage.ACTIVE -> buildString {

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -197,6 +198,26 @@ fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier) {
                 Text("● online", color = Palette.Green, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
         }
+
+        // Pasek postępu wywiadu strukturalnego — tylko dopóki nie ma jeszcze planu (etap onboardingu).
+        var interview by remember { mutableStateOf<pl.filebit.dietetyk.ui.InterviewStep?>(null) }
+        androidx.compose.runtime.LaunchedEffect(vm.messages.size) {
+            val hasPlan = app.database.planDao().get() != null
+            interview = if (hasPlan) null
+            else pl.filebit.dietetyk.ui.interviewStep(app.profileRepo.get(), app.weightRepo.latest()?.weightKg)
+        }
+        interview?.let { iv ->
+            androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 6.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Wywiad · ${iv.label}", color = Palette.Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("${iv.step}/${iv.total}", color = Palette.Green, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+                Box(Modifier.fillMaxWidth().padding(top = 4.dp).height(6.dp).background(Palette.Line, RoundedCornerShape(3.dp))) {
+                    Box(Modifier.fillMaxWidth(iv.step.toFloat() / iv.total).height(6.dp).background(Palette.Green, RoundedCornerShape(3.dp)))
+                }
+            }
+        }
+
         LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(vm.messages) { msg -> MessageItem(msg, vm.sending) { vm.send(it, apiKey) } }
             if (vm.sending) item { Text("Dietetyk pisze…", color = Palette.Green, fontSize = 13.sp) }
