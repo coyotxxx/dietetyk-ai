@@ -99,6 +99,8 @@ internal class ChatViewModel(private val app: DietetykApp) : ViewModel() {
                     kotlinx.serialization.json.Json.parseToJsonElement(app.settings.chatHistoryJson).jsonArray
                         .forEach { history.add(it.jsonObject) }
                 }
+                // Pas bezpieczeństwa: odzyskaj historię od razu przy wczytaniu (nie tylko przy send).
+                DietitianConversation.sanitizeHistory(history)
             }
         }
     }

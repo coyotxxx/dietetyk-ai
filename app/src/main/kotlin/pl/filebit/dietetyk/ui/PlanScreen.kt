@@ -210,23 +210,3 @@ fun PlanScreen(app: DietetykApp) {
     }
 }
 
-/** Pasek dni bieżącego tygodnia (dzisiejszy podświetlony). */
-@Composable
-private fun WeekDays(modifier: Modifier = Modifier) {
-    val today = java.time.LocalDate.now()
-    val monday = today.minusDays((today.dayOfWeek.value - 1).toLong())
-    val short = listOf("Pn", "Wt", "Śr", "Cz", "Pt", "So", "Nd")
-    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        for (i in 0..6) {
-            val d = monday.plusDays(i.toLong())
-            val isToday = d == today
-            Column(
-                Modifier.weight(1f).background(if (isToday) Palette.Green else Palette.Card, RoundedCornerShape(12.dp)).padding(vertical = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(short[i], color = if (isToday) androidx.compose.ui.graphics.Color.White else Palette.Muted, fontSize = 11.sp)
-                Text("${d.dayOfMonth}", color = if (isToday) androidx.compose.ui.graphics.Color.White else Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            }
-        }
-    }
-}

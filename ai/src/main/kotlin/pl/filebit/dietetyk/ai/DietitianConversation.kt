@@ -20,7 +20,7 @@ class DietitianConversation(
     /** Bezpiecznik przed zapętleniem tool-use (gdyby model nie kończył tury). */
     private val maxToolRounds = 12
 
-    private companion object {
+    companion object {
         const val MAX_HISTORY = 40
 
         private fun JsonObject.blocks(): JsonArray = this["content"] as? JsonArray ?: JsonArray(emptyList())
