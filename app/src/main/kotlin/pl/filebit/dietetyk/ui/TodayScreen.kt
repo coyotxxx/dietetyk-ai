@@ -76,7 +76,7 @@ internal fun mealEmoji(name: String): String {
 }
 
 @Composable
-fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Unit = {}) {
+fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Unit = {}, onBrowseProducts: () -> Unit = {}) {
     var goal by remember { mutableStateOf<DailyMacroGoal?>(null) }
     var consumed by remember { mutableIntStateOf(0) }
     var consumedP by remember { mutableIntStateOf(0) }
@@ -146,7 +146,11 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
     }
 
     if (showAddSheet) {
-        AddMealSheet(onDismiss = { showAddSheet = false }, onPhoto = { showAddSheet = false; launchCamera() })
+        AddMealSheet(
+            onDismiss = { showAddSheet = false },
+            onPhoto = { showAddSheet = false; launchCamera() },
+            onBrowseProducts = { showAddSheet = false; onBrowseProducts() }
+        )
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -292,7 +296,7 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
 }
 
 @Composable
-private fun AddMealSheet(onDismiss: () -> Unit, onPhoto: () -> Unit) {
+private fun AddMealSheet(onDismiss: () -> Unit, onPhoto: () -> Unit, onBrowseProducts: () -> Unit) {
     @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
     androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Card) {
         Column(Modifier.fillMaxWidth().padding(20.dp).padding(bottom = 24.dp)) {
@@ -305,6 +309,16 @@ private fun AddMealSheet(onDismiss: () -> Unit, onPhoto: () -> Unit) {
                 Column(Modifier.padding(start = 12.dp)) {
                     Text("Zdjęcie posiłku", color = Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                     Text("AI rozpozna danie i policzy kalorie", color = Palette.Muted, fontSize = 12.sp)
+                }
+            }
+            Row(
+                Modifier.fillMaxWidth().padding(top = 10.dp).background(Palette.GreenTint, RoundedCornerShape(14.dp)).clickable { onBrowseProducts() }.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("🥫", fontSize = 26.sp)
+                Column(Modifier.padding(start = 12.dp)) {
+                    Text("Przeglądaj produkty", color = Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text("Baza z makro, ulubione, zaloguj porcję", color = Palette.Muted, fontSize = 12.sp)
                 }
             }
             Row(

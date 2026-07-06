@@ -55,19 +55,23 @@ fun AppScaffold(app: DietetykApp) {
     }
     var tab by remember { mutableStateOf(Tab.DIETETYK) }
     var showNotifs by remember { mutableStateOf(false) }
+    var showProducts by remember { mutableStateOf(false) }
+    val overlay = showNotifs || showProducts
     Scaffold(
         containerColor = Palette.Bg,
-        bottomBar = { if (!showNotifs) BottomBar(tab) { tab = it } }
+        bottomBar = { if (!overlay) BottomBar(tab) { tab = it } }
     ) { inner ->
         Box(Modifier.padding(inner).fillMaxSize().background(Palette.Bg)) {
-            if (showNotifs) {
-                NotificationsScreen(app) { showNotifs = false }
-            } else when (tab) {
-                Tab.DZIS -> TodayScreen(app, onBell = { showNotifs = true }, onGoToChat = { tab = Tab.DIETETYK })
-                Tab.PLAN -> PlanScreen(app)
-                Tab.DIETETYK -> ChatScreen(app, Modifier.fillMaxSize())
-                Tab.POSTEPY -> ProgressScreen(app, onGoToChat = { tab = Tab.DIETETYK })
-                Tab.PROFIL -> ProfileScreen(app)
+            when {
+                showNotifs -> NotificationsScreen(app) { showNotifs = false }
+                showProducts -> ProductsScreen(app) { showProducts = false }
+                else -> when (tab) {
+                    Tab.DZIS -> TodayScreen(app, onBell = { showNotifs = true }, onGoToChat = { tab = Tab.DIETETYK }, onBrowseProducts = { showProducts = true })
+                    Tab.PLAN -> PlanScreen(app)
+                    Tab.DIETETYK -> ChatScreen(app, Modifier.fillMaxSize())
+                    Tab.POSTEPY -> ProgressScreen(app, onGoToChat = { tab = Tab.DIETETYK })
+                    Tab.PROFIL -> ProfileScreen(app, onBrowseProducts = { showProducts = true })
+                }
             }
         }
     }

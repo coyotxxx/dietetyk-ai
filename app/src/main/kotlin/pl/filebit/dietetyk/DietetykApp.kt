@@ -38,7 +38,7 @@ class DietetykApp : Application() {
     val weightRepo: WeightRepository by lazy { WeightRepository(database.weightDao()) }
 
     val contextBuilder: DietitianContextBuilder by lazy {
-        DietitianContextBuilder(profileRepo, weightRepo, database.energyLogDao(), database.aiMemoryDao())
+        DietitianContextBuilder(profileRepo, weightRepo, database.energyLogDao(), database.aiMemoryDao(), database.foodProductDao())
     }
 
     /** Przepis (3 warianty) dla dania — z cache lub generowany na żądanie i cache'owany. */

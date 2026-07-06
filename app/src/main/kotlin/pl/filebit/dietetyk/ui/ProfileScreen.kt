@@ -41,7 +41,7 @@ import pl.filebit.dietetyk.core.model.NutritionProfile
 private fun kg(d: Double?): String = d?.let { (if (it % 1.0 == 0.0) "%.0f" else "%.1f").format(it).replace('.', ',') } ?: "—"
 
 @Composable
-fun ProfileScreen(app: DietetykApp) {
+fun ProfileScreen(app: DietetykApp, onBrowseProducts: () -> Unit = {}) {
     var profile by remember { mutableStateOf<NutritionProfile?>(null) }
     var loaded by remember { mutableStateOf(false) }
     var currentW by remember { mutableStateOf<Double?>(null) }
@@ -183,6 +183,8 @@ fun ProfileScreen(app: DietetykApp) {
                 Box(Modifier.size(32.dp).background(Palette.GreenTint, androidx.compose.foundation.shape.CircleShape).clickable { if (meals < 8) { meals++; saveProfilePatch { it.copy(mealsPerDay = meals) } } }, contentAlignment = Alignment.Center) { Text("+", color = Palette.GreenDark, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
             }
         }
+
+        SettingRow("🥫 Baza produktów", "Przeglądaj ›") { onBrowseProducts() }
 
         Text("Ustawienia", color = Palette.TextDark, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 20.dp, bottom = 4.dp))
 

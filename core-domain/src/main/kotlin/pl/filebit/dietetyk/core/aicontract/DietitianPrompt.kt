@@ -81,6 +81,9 @@ object DietitianPrompt {
             appendLine("Pamiętasz o tej osobie:")
             ctx.memoryNotes.forEach { appendLine("  - $it") }
         }
+        if (ctx.favoriteProducts.isNotEmpty()) {
+            appendLine("Produkty ULUBIONE użytkownika (preferuj je układając plan, jeśli pasują do celu i makra — nie trzymaj się kurczowo, cel ważniejszy): ${ctx.favoriteProducts.joinToString(", ")}.")
+        }
 
         // Cel / kontrakt
         ctx.currentGoal?.let { g ->

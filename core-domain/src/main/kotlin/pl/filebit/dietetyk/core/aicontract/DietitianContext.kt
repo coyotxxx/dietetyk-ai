@@ -32,6 +32,7 @@ data class DietitianContext(
     val profile: NutritionProfile,
     val clinical: ClinicalContext,
     val memoryNotes: List<String> = emptyList(),   // pamięć epizodyczna: „nie znosi twarogu", „środy ciężkie"…
+    val favoriteProducts: List<String> = emptyList(), // produkty oznaczone jako ulubione — AI preferuje je w planach
     // === CEL / KONTRAKT ===
     val currentGoal: DailyMacroGoal? = null,        // aktualne kcal/makro + breakdown „skąd te liczby"
     val tdeeEstimate: TdeeEstimate? = null,         // adaptacyjny metabolizm (realny vs wzór + ufność)
