@@ -156,7 +156,7 @@ private suspend fun saveToBase(app: DietetykApp, state: ScanState.Found) {
             dao.insert(FoodProductEntity(
                 name = p.name, nameNorm = FoodProductSeed.normalize(p.name),
                 kcal = p.kcal, proteinG = p.proteinG, carbsG = p.carbsG, fatG = p.fatG,
-                category = "Inne", source = "scan", barcode = state.barcode, imageUrl = p.imageUrl
+                category = inferCategory(p.name), source = "scan", barcode = state.barcode, imageUrl = p.imageUrl
             ))
         }
     }

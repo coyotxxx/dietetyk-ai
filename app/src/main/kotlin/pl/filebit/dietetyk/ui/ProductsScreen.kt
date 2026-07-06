@@ -192,16 +192,6 @@ private fun ProductRow(p: FoodProductEntity, onTap: () -> Unit, onStar: () -> Un
     }
 }
 
-/** Grupowanie kategorii w 3 akcenty + neutral (spec Fable): 0=Green, 1=Orange, 2=Blue, 3=Neutral. */
-private fun categoryHue(cat: String): Int = when {
-    cat.contains("mię", true) || cat.contains("mie", true) || cat.contains("ryb", true) ||
-        cat.contains("tłuszcz", true) || cat.contains("tluszcz", true) || cat.contains("olej", true) ||
-        cat.contains("orzech", true) || cat.contains("drób", true) || cat.contains("drob", true) -> 1
-    cat.contains("nabia", true) || cat.contains("jaj", true) || cat.contains("ser", true) || cat.contains("mleko", true) -> 2
-    cat.contains("inne", true) || cat.contains("przypraw", true) -> 3
-    else -> 0 // warzywa, owoce, strączki, zboża + reszta roślinna
-}
-
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun ProductDetailSheet(app: DietetykApp, p: FoodProductEntity, onDismiss: () -> Unit) {
@@ -294,7 +284,9 @@ private fun AddProductDialog(app: DietetykApp, onDismiss: () -> Unit) {
                             FoodProductEntity(
                                 name = name.trim(), nameNorm = pl.filebit.dietetyk.data.db.FoodProductSeed.normalize(name),
                                 kcal = k, proteinG = prot.toDoubleOrNull() ?: 0.0, carbsG = carb.toDoubleOrNull() ?: 0.0,
-                                fatG = fat.toDoubleOrNull() ?: 0.0, category = cat.trim().ifBlank { "Inne" }, source = "user"
+                                fatG = fat.toDoubleOrNull() ?: 0.0,
+                                category = cat.trim().let { if (it.isBlank() || it == "Inne") inferCategory(name) else it },
+                                source = "user"
                             )
                         )
                     }
@@ -315,62 +307,3 @@ private fun MacroTile(value: String, label: String, tint: Color, modifier: Modif
 }
 
 private fun fmt(d: Double): String = (if (d % 1.0 == 0.0) "%.0f" else "%.1f").format(d)
-
-/** Ikona konkretnego produktu (po nazwie), z fallbackiem na ikonę kategorii. */
-private fun productEmoji(name: String, category: String): String {
-    val n = name.lowercase()
-    fun has(vararg keys: String) = keys.any { n.contains(it) }
-    return when {
-        // Owoce
-        has("jabłk", "jablk") -> "🍎"; has("banan") -> "🍌"; has("arbuz") -> "🍉"
-        has("gruszk") -> "🍐"; has("pomarańcz", "pomarancz") -> "🍊"; has("cytryn") -> "🍋"
-        has("truskaw") -> "🍓"; has("winogron") -> "🍇"; has("brzoskwin") -> "🍑"
-        has("ananas") -> "🍍"; has("borówk", "borowk", "jagod") -> "🫐"; has("wiśni", "wisni", "czereśni", "czeresni") -> "🍒"
-        has("kiwi") -> "🥝"; has("mango") -> "🥭"; has("melon", "kantalup") -> "🍈"
-        has("awokado") -> "🥑"; has("grejpfrut") -> "🍊"; has("malin") -> "🍓"; has("śliwk", "sliwk") -> "🍑"
-        has("kokos") -> "🥥"
-        // Warzywa
-        has("pomidor") -> "🍅"; has("marchew") -> "🥕"; has("ogórek", "ogorek") -> "🥒"
-        has("brokuł", "brokul") -> "🥦"; has("papryk") -> "🫑"; has("ziemniak") -> "🥔"; has("batat") -> "🍠"
-        has("kukurydz") -> "🌽"; has("cebul") -> "🧅"; has("czosnek") -> "🧄"; has("bakłażan", "baklazan") -> "🍆"
-        has("sałat", "salat", "szpinak", "kapust", "roszpon") -> "🥬"; has("grzyb", "pieczark", "boczniak") -> "🍄"
-        has("dyni", "dynia") -> "🎃"; has("groszek", "groch", "fasol", "soczewic", "ciecierzyc") -> "🫘"
-        // Mięso i ryby
-        has("kurczak", "kurcz", "indyk", "drób", "drob", "udko", "pierś", "piers") -> "🍗"
-        has("łosoś", "losos", "tuńczyk", "tunczyk", "dorsz", "makrel", "śledź", "sledz", "ryb", "pstrąg", "pstrag") -> "🐟"
-        has("krewetk", "owoce morza") -> "🦐"; has("wołow", "wolow", "stek", "rozbef") -> "🥩"
-        has("boczek", "schab", "szynk", "kabanos", "kiełbas", "kielbas", "wieprz", "parówk", "parowk") -> "🥓"
-        // Nabiał i jaja
-        has("jaj") -> "🥚"; has("mleko") -> "🥛"; has("jogurt", "kefir", "maślank", "maslank") -> "🥛"
-        has("ser", "twaróg", "twarog", "mozzarell", "feta") -> "🧀"; has("masło", "maslo") -> "🧈"
-        // Zboża i pieczywo
-        has("chleb", "bułk", "bulk", "pieczyw", "bagiet", "tost") -> "🍞"; has("ryż", "ryz") -> "🍚"
-        has("makaron", "spaghetti", "penne") -> "🍝"; has("płatki", "platki", "owsian", "musli", "granol") -> "🥣"
-        has("kasz", "quinoa", "komos") -> "🌾"; has("naleśnik", "nalesnik", "gofr") -> "🥞"
-        // Orzechy i tłuszcze
-        has("orzech", "migdał", "migdal", "nerkowc", "pistacj") -> "🥜"; has("oliw", "olej") -> "🫒"
-        has("słonecznik", "slonecznik", "dyni pestk", "siemię", "siemie", "chia", "sezam") -> "🌰"
-        // Inne / napoje / słodycze
-        has("czekolad") -> "🍫"; has("miód", "miod") -> "🍯"; has("cukier") -> "🍬"; has("dżem", "dzem", "konfitur") -> "🍓"
-        has("kaw") -> "☕"; has("herbat") -> "🍵"; has("wod") -> "💧"; has("sok") -> "🧃"
-        has("ketchup", "musztard", "majonez", "sos") -> "🧂"; has("ciast", "herbatnik", "wafel", "batonik") -> "🍪"
-        else -> catEmoji(category)
-    }
-}
-
-private fun catEmoji(cat: String): String = when {
-    cat.contains("warzyw", true) -> "🥦"
-    cat.contains("owoc", true) -> "🍎"
-    cat.contains("ryb", true) -> "🐟"
-    cat.contains("mię", true) || cat.contains("mie", true) || cat.contains("drób", true) || cat.contains("drob", true) -> "🍗"
-    cat.contains("nabia", true) || cat.contains("ser", true) || cat.contains("mleko", true) -> "🥛"
-    cat.contains("zbo", true) || cat.contains("pieczyw", true) || cat.contains("kasz", true) || cat.contains("makaron", true) || cat.contains("ryż", true) -> "🌾"
-    cat.contains("tłuszcz", true) || cat.contains("tluszcz", true) || cat.contains("olej", true) || cat.contains("oliw", true) -> "🫒"
-    cat.contains("orzech", true) || cat.contains("nasion", true) -> "🥜"
-    cat.contains("jaj", true) -> "🥚"
-    cat.contains("strącz", true) || cat.contains("stracz", true) -> "🫘"
-    cat.contains("napó", true) || cat.contains("napo", true) -> "🥤"
-    cat.contains("słody", true) || cat.contains("slody", true) -> "🍫"
-    cat.contains("przypraw", true) -> "🧂"
-    else -> "📦"
-}
