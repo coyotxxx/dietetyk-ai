@@ -104,7 +104,7 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
         consumedF = logs.sumOf { it.fatG }
         app.database.planDao().get()?.let { plan ->
             meals = runCatching {
-                Json.parseToJsonElement(plan.planJson).jsonObject["meals"]!!.jsonArray.map { e ->
+                (PlanData.mealsForDay(plan.planJson, PlanData.todayDow()) ?: kotlinx.serialization.json.JsonArray(emptyList())).map { e ->
                     val o = e.jsonObject
                     DayMeal(
                         o["name"]?.jsonPrimitive?.content ?: "Posiłek",

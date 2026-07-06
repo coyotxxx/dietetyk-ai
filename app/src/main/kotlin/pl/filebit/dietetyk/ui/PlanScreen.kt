@@ -1,6 +1,7 @@
 package pl.filebit.dietetyk.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,6 +34,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import pl.filebit.dietetyk.DietetykApp
+import pl.filebit.dietetyk.data.db.PlanEntity
 
 private data class ShopItem(val name: String, val grams: Int, val cat: String)
 private data class PlanMeal(
@@ -42,6 +44,32 @@ private data class PlanMeal(
 
 private val RECIPE_VARIANTS = listOf("Tradycyjnie", "Air Fryer", "Thermomix")
 private val RECIPE_KEYS = listOf("tradycyjnie", "airfryer", "thermomix")
+
+/** Parsuje tablicę posiłków (z planJson) na listę PlanMeal. Tolerancyjne — null/błąd → pusta lista. */
+private fun parsePlanMeals(mealsArr: kotlinx.serialization.json.JsonArray?): List<PlanMeal> {
+    if (mealsArr == null) return emptyList()
+    return runCatching {
+        mealsArr.map { e ->
+            val o = e.jsonObject
+            val ings = (o["ings"] as? kotlinx.serialization.json.JsonArray)?.mapNotNull { it as? kotlinx.serialization.json.JsonObject }?.map { io ->
+                ShopItem(
+                    io["name"]?.jsonPrimitive?.content ?: "",
+                    io["grams"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
+                    io["cat"]?.jsonPrimitive?.content ?: "Inne"
+                )
+            } ?: emptyList()
+            PlanMeal(
+                name = o["name"]?.jsonPrimitive?.content ?: "Posiłek",
+                time = o["timeHint"]?.jsonPrimitive?.content ?: "",
+                kcal = o["kcal"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
+                prep = o["prepMinutes"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
+                ingredients = o["ingredients"]?.jsonPrimitive?.content ?: "",
+                ings = ings,
+                emoji = o["emoji"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() } ?: mealEmoji(o["name"]?.jsonPrimitive?.content ?: "")
+            )
+        }
+    }.getOrDefault(emptyList())
+}
 
 @Composable
 private fun MealCard(app: DietetykApp, index: Int, meal: PlanMeal) {
@@ -139,50 +167,80 @@ private fun MealCard(app: DietetykApp, index: Int, meal: PlanMeal) {
 
 @Composable
 fun PlanScreen(app: DietetykApp) {
+    var planJson by remember { mutableStateOf<String?>(null) }
     var meals by remember { mutableStateOf<List<PlanMeal>?>(null) }
     var targetKcal by remember { mutableStateOf(0) }
     var loaded by remember { mutableStateOf(false) }
     var showShopping by remember { mutableStateOf(false) }
+    var selectedDay by remember { mutableStateOf(PlanData.todayDow()) }
+    var daysWithPlan by remember { mutableStateOf(emptySet<Int>()) }
+    var reloadKey by remember { mutableStateOf(0) }
     val checked = remember { androidx.compose.runtime.mutableStateMapOf<String, Boolean>() }
+    val scope = rememberCoroutineScope()
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(reloadKey) {
         val entity = app.database.planDao().get()
         loaded = true
-        if (entity != null) {
-            targetKcal = entity.targetKcal
-            meals = runCatching {
-                Json.parseToJsonElement(entity.planJson).jsonObject["meals"]!!.jsonArray.map { e ->
-                    val o = e.jsonObject
-                    val ings = (o["ings"] as? kotlinx.serialization.json.JsonArray)?.mapNotNull { it as? kotlinx.serialization.json.JsonObject }?.map { io ->
-                        ShopItem(
-                            io["name"]?.jsonPrimitive?.content ?: "",
-                            io["grams"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
-                            io["cat"]?.jsonPrimitive?.content ?: "Inne"
-                        )
-                    } ?: emptyList()
-                    PlanMeal(
-                        name = o["name"]?.jsonPrimitive?.content ?: "Posiłek",
-                        time = o["timeHint"]?.jsonPrimitive?.content ?: "",
-                        kcal = o["kcal"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
-                        prep = o["prepMinutes"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
-                        ingredients = o["ingredients"]?.jsonPrimitive?.content ?: "",
-                        ings = ings,
-                        emoji = o["emoji"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() } ?: mealEmoji(o["name"]?.jsonPrimitive?.content ?: "")
-                    )
-                }
-            }.getOrDefault(emptyList())
-        }
+        planJson = entity?.planJson
+        targetKcal = entity?.targetKcal ?: 0
+        daysWithPlan = entity?.let { PlanData.daysWithPlan(it.planJson) } ?: emptySet()
+    }
+    // Parsowanie posiłków wybranego dnia (reaguje na zmianę dnia i przeładowanie planu).
+    LaunchedEffect(planJson, selectedDay) {
+        val pj = planJson
+        meals = if (pj == null) null else parsePlanMeals(PlanData.mealsForDay(pj, selectedDay))
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
-        Text("Plan na dziś", color = Palette.TextDark, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
-        Text("Plan na kolejne dni ułoży Dietetyk w rozmowie", color = Palette.Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp, bottom = 4.dp))
+        Text("Plan tygodniowy", color = Palette.TextDark, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
+        Text(DOW_LONG[selectedDay - 1] + if (selectedDay == PlanData.todayDow()) " · dziś" else "", color = Palette.Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp, bottom = 8.dp))
+
+        // === Switcher dni tygodnia (Pn–Nd) ===
+        Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            for (d in 1..7) {
+                val isSel = d == selectedDay
+                val isToday = d == PlanData.todayDow()
+                val hasPlan = daysWithPlan.contains(d)
+                Column(
+                    Modifier.weight(1f).background(if (isSel) Palette.Green else Palette.Card, RoundedCornerShape(12.dp))
+                        .then(if (!isSel && isToday) Modifier.border(1.dp, Palette.Green, RoundedCornerShape(12.dp)) else Modifier)
+                        .clickable { selectedDay = d }.padding(vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(DOW_SHORT[d - 1], color = if (isSel) androidx.compose.ui.graphics.Color.White else Palette.TextDark, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Box(Modifier.padding(top = 4.dp).size(5.dp).background(if (hasPlan) (if (isSel) androidx.compose.ui.graphics.Color.White else Palette.Green) else androidx.compose.ui.graphics.Color.Transparent, androidx.compose.foundation.shape.CircleShape))
+                }
+            }
+        }
+
         val m = meals
         if (m == null || m.isEmpty()) {
             Text(
-                if (loaded) "Nie masz jeszcze planu. Poproś Dietetyka, żeby ułożył plan na dziś." else "Wczytuję…",
-                color = Palette.Muted, fontSize = 14.sp, modifier = Modifier.padding(top = 12.dp)
+                if (!loaded) "Wczytuję…" else "Brak planu na ${DOW_LONG[selectedDay - 1].lowercase()}.",
+                color = Palette.Muted, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp, bottom = 10.dp)
             )
+            if (loaded) {
+                val sources = (1..7).filter { it != selectedDay && daysWithPlan.contains(it) }
+                if (sources.isEmpty()) {
+                    Text("Poproś Dietetyka w rozmowie, żeby ułożył plan.", color = Palette.Muted, fontSize = 13.sp)
+                } else {
+                    Text("Skopiuj z innego dnia:", color = Palette.TextDark, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 6.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        sources.forEach { src ->
+                            Box(
+                                Modifier.background(Palette.GreenTint, RoundedCornerShape(10.dp)).clickable {
+                                    val pj = planJson ?: return@clickable
+                                    val newJson = PlanData.copyDay(pj, src, selectedDay, targetKcal) ?: return@clickable
+                                    scope.launch {
+                                        app.database.planDao().upsert(PlanEntity(planJson = newJson, targetKcal = targetKcal, updatedAt = System.currentTimeMillis(), dirty = true))
+                                        reloadKey++
+                                    }
+                                }.padding(horizontal = 12.dp, vertical = 8.dp)
+                            ) { Text(DOW_SHORT[src - 1], color = Palette.GreenDark, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+                        }
+                    }
+                }
+            }
             return
         }
         val sum = m.sumOf { it.kcal }
