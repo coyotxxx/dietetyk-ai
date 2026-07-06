@@ -2,6 +2,7 @@ package pl.filebit.dietetyk
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -222,9 +223,25 @@ fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier) {
             items(vm.messages) { msg -> MessageItem(msg, vm.sending) { vm.send(it, apiKey) } }
             if (vm.sending) item { Text("Dietetyk pisze…", color = Palette.Green, fontSize = 13.sp) }
         }
+        // Podpowiedzi startowe — pokazują, co dietetyk potrafi (tylko w aktywnym użyciu, nie w wywiadzie,
+        // gdy nie ma podsuniętych akcji i nie trwa odpowiedź). Rozwiązuje „pusty czat onieśmiela".
+        val lastMsg = vm.messages.lastOrNull()
+        val showStarters = interview == null && !vm.sending && lastMsg != null && !lastMsg.fromUser && lastMsg.actions.isEmpty() && lastMsg.cards.isEmpty()
+        if (showStarters) {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()).padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                listOf("Co dziś zjeść?", "Zamień posiłek", "Jak mi idzie?", "Jestem na mieście").forEach { s ->
+                    Box(
+                        Modifier.clip(RoundedCornerShape(16.dp)).background(Palette.GreenTint, RoundedCornerShape(16.dp)).clickable { vm.send(s, apiKey) }.padding(horizontal = 12.dp, vertical = 8.dp)
+                    ) { Text(s, color = Palette.GreenDark, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+                }
+            }
+        }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.padding(end = 6.dp).background(Palette.GreenTint, RoundedCornerShape(14.dp))
+                Modifier.padding(end = 6.dp).clip(RoundedCornerShape(14.dp)).background(Palette.GreenTint, RoundedCornerShape(14.dp))
                     .clickable(enabled = !vm.sending) {
                         val uri = ImageUtil.newPhotoUri(context)
                         photoUri = uri
