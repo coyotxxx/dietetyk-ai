@@ -100,12 +100,12 @@ private fun MealCard(app: DietetykApp, index: Int, meal: PlanMeal) {
             val ingList = meal.ings.filter { it.name.isNotBlank() }
             if (ingList.isNotEmpty()) {
                 Text("Składniki", color = Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
-                ingList.forEach { ing ->
+                ingList.forEachIndexed { i, ing ->
                     Row(Modifier.fillMaxWidth().padding(vertical = 7.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(ing.name, color = Palette.TextDark, fontSize = 14.sp)
                         Text("${ing.grams} g", color = Palette.Muted, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
-                    Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.Line))
+                    if (i < ingList.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.Line))
                 }
             }
             // === SPOSÓB PRZYGOTOWANIA (kroki per wariant) ===
