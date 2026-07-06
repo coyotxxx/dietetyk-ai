@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -45,7 +46,7 @@ private val RECIPE_KEYS = listOf("tradycyjnie", "airfryer", "thermomix")
 @Composable
 private fun MealCard(app: DietetykApp, index: Int, meal: PlanMeal) {
     var expanded by remember { mutableStateOf(false) }
-    var recipe by remember { mutableStateOf<List<String>?>(null) }
+    var recipe by remember { mutableStateOf<List<List<String>>?>(null) }
     var loading by remember { mutableStateOf(false) }
     var variant by remember { mutableStateOf(app.settings.recipeVariant) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -60,7 +61,14 @@ private fun MealCard(app: DietetykApp, index: Int, meal: PlanMeal) {
                     try {
                         val json = app.recipeFor(meal.name, meal.ingredients)
                         val obj = Json.parseToJsonElement(json).jsonObject
-                        recipe = RECIPE_KEYS.map { obj[it]?.jsonPrimitive?.content ?: "—" }
+                        // Kroki jako lista; tolerancja starego formatu (string → jeden krok) = crash-safety.
+                        recipe = RECIPE_KEYS.map { key ->
+                            when (val v = obj[key]) {
+                                is kotlinx.serialization.json.JsonArray -> v.mapNotNull { it.jsonPrimitive.content.takeIf { s -> s.isNotBlank() } }
+                                is kotlinx.serialization.json.JsonPrimitive -> v.content.split(Regex("(?<=[.!?])\\s+")).filter { it.isNotBlank() }
+                                else -> emptyList()
+                            }.ifEmpty { listOf("Brak kroków — spróbuj wygenerować ponownie.") }
+                        }
                     } catch (e: Exception) {
                         error = "Nie udało się wygenerować przepisu. Spróbuj ponownie."
                     } finally { loading = false }
@@ -82,17 +90,31 @@ private fun MealCard(app: DietetykApp, index: Int, meal: PlanMeal) {
                 if (meal.prep > 0) Text("⏱ ${meal.prep} min", color = Palette.Muted, fontSize = 11.sp, maxLines = 1, softWrap = false)
             }
         }
-        if (meal.ingredients.isNotBlank()) {
-            Text(meal.ingredients, color = Palette.Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
+        if (!expanded && meal.ingredients.isNotBlank()) {
+            Text(meal.ingredients, color = Palette.Muted, fontSize = 13.sp, maxLines = 2, modifier = Modifier.padding(top = 6.dp))
         }
-        Text(if (expanded) "▲ przepis" else "▼ przepis (3 warianty)", color = Palette.Green, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
+        Text(if (expanded) "▲ Zwiń" else "▼ Składniki i przepis (3 warianty)", color = Palette.Green, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
 
         if (expanded) {
+            // === SKŁADNIKI (wspólne dla wariantów) ===
+            val ingList = meal.ings.filter { it.name.isNotBlank() }
+            if (ingList.isNotEmpty()) {
+                Text("Składniki", color = Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
+                ingList.forEach { ing ->
+                    Row(Modifier.fillMaxWidth().padding(vertical = 7.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(ing.name, color = Palette.TextDark, fontSize = 14.sp)
+                        Text("${ing.grams} g", color = Palette.Muted, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.Line))
+                }
+            }
+            // === SPOSÓB PRZYGOTOWANIA (kroki per wariant) ===
+            Text("Sposób przygotowania", color = Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 18.dp, bottom = 6.dp))
             when {
-                loading -> Text("Generuję przepis…", color = Palette.Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
-                error != null -> Text(error!!, color = Palette.Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
+                loading -> Text("Generuję przepis…", color = Palette.Muted, fontSize = 13.sp)
+                error != null -> Text(error!!, color = Palette.Muted, fontSize = 13.sp)
                 recipe != null -> {
-                    Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         RECIPE_VARIANTS.forEachIndexed { vi, label ->
                             Box(
                                 Modifier.weight(1f).background(if (vi == variant) Palette.Green else Palette.GreenTint, RoundedCornerShape(10.dp))
@@ -101,7 +123,14 @@ private fun MealCard(app: DietetykApp, index: Int, meal: PlanMeal) {
                             ) { Text(label, color = if (vi == variant) androidx.compose.ui.graphics.Color.White else Palette.GreenDark, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
                         }
                     }
-                    Text(recipe!!.getOrElse(variant) { "—" }, color = Palette.TextDark, fontSize = 14.sp, modifier = Modifier.padding(top = 10.dp))
+                    recipe!!.getOrElse(variant) { emptyList() }.forEachIndexed { i, step ->
+                        Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.Top) {
+                            Box(Modifier.size(24.dp).background(Palette.Green, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
+                                Text("${i + 1}", color = androidx.compose.ui.graphics.Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Text(step, color = Palette.TextDark, fontSize = 14.sp, modifier = Modifier.padding(start = 10.dp, top = 2.dp))
+                        }
+                    }
                 }
             }
         }

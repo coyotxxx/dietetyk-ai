@@ -12,10 +12,12 @@ class RecipeGenerator(private val api: ClaudeApi) {
         val system = "Jesteś dietetykiem-kucharzem. Piszesz zwięźle, po polsku, zwykłym tekstem (bez markdown). " +
             "Odpowiadasz WYŁĄCZNIE surowym obiektem JSON, bez komentarza przed ani po."
         val prompt = "Podaj przepis na danie \"$mealName\" ze składników: $ingredients.\n" +
-            "Zwróć DOKŁADNIE taki JSON:\n" +
-            "{\"tradycyjnie\":\"kroki przygotowania na kuchence/w piekarniku, 2-5 zdań\"," +
-            "\"airfryer\":\"kroki w air fryerze z temperaturą i czasem, 2-5 zdań\"," +
-            "\"thermomix\":\"kroki w Thermomixie z ustawieniami, 2-5 zdań\"}"
+            "Kroki podaj jako TABLICĘ krótkich, imperatywnych zdań — każdy element = jedna czynność, " +
+            "W KOLEJNOŚCI wykonania, z konkretnymi parametrami (temperatura, czas). 3-6 kroków na wariant.\n" +
+            "Zwróć DOKŁADNIE taki JSON (wartości to tablice stringów):\n" +
+            "{\"tradycyjnie\":[\"krok 1\",\"krok 2\",\"...\"]," +
+            "\"airfryer\":[\"krok 1 z temp. i czasem\",\"...\"]," +
+            "\"thermomix\":[\"krok 1 z ustawieniami\",\"...\"]}"
         val request = ClaudeMessages.buildRequest(
             model = ClaudeConfig.MODEL_CHAT,
             maxTokens = 1500,
