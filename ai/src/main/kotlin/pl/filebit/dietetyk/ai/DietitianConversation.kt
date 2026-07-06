@@ -18,10 +18,39 @@ class DietitianConversation(
     private val tools: JsonArray = ClaudeToolMapper.toolsJson()
 ) {
     /** Bezpiecznik przed zapętleniem tool-use (gdyby model nie kończył tury). */
-    private val maxToolRounds = 8
+    private val maxToolRounds = 12
 
     private companion object {
         const val MAX_HISTORY = 40
+
+        private fun JsonObject.blocks(): JsonArray = this["content"] as? JsonArray ?: JsonArray(emptyList())
+        private fun JsonObject.role(): String? = this["role"]?.jsonPrimitive?.content
+        private fun JsonArray.hasType(type: String): Boolean =
+            any { (it as? JsonObject)?.get("type")?.jsonPrimitive?.content == type }
+
+        /**
+         * Usuwa niespójności tool_use/tool_result, które inaczej dają API 400 „tool_use without tool_result".
+         * Odzyskuje historie zepsute przez wcześniejszy bailout (assistant z tool_use bez wyniku) —
+         * bez potrzeby „Wyczyść rozmowę". Usuwa też osierocone tool_result (bez poprzedzającego tool_use).
+         */
+        fun sanitizeHistory(h: MutableList<JsonObject>) {
+            var i = 0
+            while (i < h.size) {
+                val m = h[i]
+                val blocks = m.blocks()
+                if (m.role() == "assistant" && blocks.hasType("tool_use")) {
+                    val next = h.getOrNull(i + 1)
+                    val nextIsResult = next?.role() == "user" && next.blocks().hasType("tool_result")
+                    if (!nextIsResult) { h.removeAt(i); continue }   // wiszący tool_use → usuń
+                }
+                if (m.role() == "user" && blocks.hasType("tool_result")) {
+                    val prev = h.getOrNull(i - 1)
+                    val prevIsToolUse = prev?.role() == "assistant" && prev.blocks().hasType("tool_use")
+                    if (!prevIsToolUse) { h.removeAt(i); continue }  // osierocony tool_result → usuń
+                }
+                i++
+            }
+        }
         /** Utnij historię do ostatnich [max] tur; okno MUSI zaczynać się od wiadomości user typu text
          * (inaczej wiszący tool_result → 400). Nie przecina par tool_use/tool_result. */
         fun trimHistory(history: MutableList<JsonObject>, max: Int) {
@@ -45,6 +74,8 @@ class DietitianConversation(
         maxTokens: Int = ClaudeConfig.DEFAULT_MAX_TOKENS,
         imageB64: String? = null
     ): String {
+        // Napraw ewentualne niespójności tool_use/tool_result (odzysk zepsutej historii) PRZED oknem.
+        sanitizeHistory(history)
         // Okno kontekstu: trzymaj tylko ostatnie tury do API (koszt/limit tokenów).
         // Trwała historia (Room + prefs) jest pełna; stan trwały niesie DietitianContext.
         trimHistory(history, MAX_HISTORY)
@@ -60,7 +91,10 @@ class DietitianConversation(
             if (turn.stopReason != "tool_use" || turn.toolUses.isEmpty()) return turn.text
 
             if (++rounds > maxToolRounds) {
-                return turn.text.ifBlank { "Przepraszam, coś poszło nie tak przy wykonywaniu akcji — spróbujmy jeszcze raz." }
+                // Zdejmij świeżo dodany assistant-turn z wiszącym tool_use (bez wyników) —
+                // inaczej historia zostaje niespójna i każdy kolejny send da API 400.
+                history.removeAt(history.lastIndex)
+                return turn.text.ifBlank { "Nie udało mi się dokończyć tej akcji — spróbujmy jeszcze raz." }
             }
 
             val results = turn.toolUses.map { use ->

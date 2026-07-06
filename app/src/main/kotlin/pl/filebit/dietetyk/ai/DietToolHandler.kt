@@ -40,6 +40,10 @@ class DietToolHandler(
     private val nowProvider: () -> Long = { System.currentTimeMillis() }
 ) : ToolHandler {
 
+    /** Ile razy z rzędu walidator odrzucił plan — po 2 próbach zapisujemy mimo drobnej rozbieżności
+     *  (żeby AI nie pętliło save_diet_plan bez końca i nie wyczerpało limitu tur). */
+    private var planRetries = 0
+
     override suspend fun handle(name: String, input: JsonObject): ToolResult {
         val now = nowProvider()
         return when (name) {
@@ -187,10 +191,13 @@ class DietToolHandler(
             productsByName = byName
         )
         val result = PlanValidator.validate(plan, ctx)
-        if (!result.isValid) {
-            // Guardrail: silnik odrzuca plan → AI dostaje feedback i poprawia gramatury.
+        if (!result.isValid && planRetries < 2) {
+            // Guardrail: silnik odrzuca plan → AI dostaje feedback i poprawia gramatury (maks. 2 próby).
+            planRetries++
             return ToolResult(PlanValidator.buildRetryFeedback(result), isError = true)
         }
+        // Sukces LUB fallback po 2 próbach — zapisujemy plan (lepiej drobna rozbieżność niż zapętlenie).
+        planRetries = 0
 
         // Per-posiłek przeliczone z bazy (do wyświetlenia na Dziś/Plan)
         val mealsJson = buildJsonArray {
