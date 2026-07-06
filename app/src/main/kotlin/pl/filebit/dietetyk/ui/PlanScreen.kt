@@ -146,8 +146,8 @@ fun PlanScreen(app: DietetykApp) {
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
-        Text("Plan tygodniowy", color = Palette.TextDark, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
-        WeekDays(Modifier.padding(top = 12.dp))
+        Text("Plan na dziś", color = Palette.TextDark, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
+        Text("Plan na kolejne dni ułoży Dietetyk w rozmowie", color = Palette.Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp, bottom = 4.dp))
         val m = meals
         if (m == null || m.isEmpty()) {
             Text(

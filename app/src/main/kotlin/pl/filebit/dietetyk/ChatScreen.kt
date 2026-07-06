@@ -278,15 +278,18 @@ private fun PhotoThumb(path: String, fromUser: Boolean) {
 @Composable
 private fun Bubble(msg: UiMsg) {
     Box(Modifier.fillMaxWidth(), contentAlignment = if (msg.fromUser) Alignment.CenterEnd else Alignment.CenterStart) {
-        Text(
-            msg.text,
-            color = if (msg.fromUser) Color.White else Palette.TextDark,
-            fontSize = 15.sp,
-            modifier = Modifier
-                .widthIn(max = 300.dp)
-                .background(if (msg.fromUser) Palette.Green else Palette.GreenTint, RoundedCornerShape(14.dp))
-                .padding(horizontal = 12.dp, vertical = 8.dp)
-        )
+        // SelectionContainer = można zaznaczyć i skopiować tekst (długie przytrzymanie).
+        androidx.compose.foundation.text.selection.SelectionContainer {
+            Text(
+                msg.text,
+                color = if (msg.fromUser) Color.White else Palette.TextDark,
+                fontSize = 15.sp,
+                modifier = Modifier
+                    .widthIn(max = 300.dp)
+                    .background(if (msg.fromUser) Palette.Green else Palette.GreenTint, RoundedCornerShape(14.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            )
+        }
     }
 }
 
