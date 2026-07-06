@@ -76,7 +76,7 @@ fun ProfileScreen(app: DietetykApp) {
             onDismissRequest = { showKeyDialog = false },
             title = { Text("Klucz Claude API") },
             text = {
-                androidx.compose.material3.OutlinedTextField(
+                androidx.compose.material3.OutlinedTextField(shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp), 
                     value = keyText, onValueChange = { keyText = it },
                     placeholder = { Text("sk-ant-…") }, modifier = Modifier.fillMaxWidth()
                 )
@@ -145,7 +145,7 @@ fun ProfileScreen(app: DietetykApp) {
                 onDismissRequest = { showGoalDialog = false },
                 title = { Text("Waga docelowa") },
                 text = {
-                    androidx.compose.material3.OutlinedTextField(
+                    androidx.compose.material3.OutlinedTextField(shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp), 
                         value = goalText, onValueChange = { goalText = it },
                         label = { Text("kg") }, singleLine = true,
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)

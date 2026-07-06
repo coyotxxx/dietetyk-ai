@@ -24,6 +24,7 @@ data class AppColors(
     val TextDark: Color,
     val Muted: Color,
     val Line: Color,
+    val Error: Color,
     val isDark: Boolean = false
 )
 
@@ -37,7 +38,8 @@ val LightColors = AppColors(
     Blue = Color(0xFF5B93C4),
     TextDark = Color(0xFF23261F),
     Muted = Color(0xFF7A857D),
-    Line = Color(0xFFC8C9D3)
+    Line = Color(0xFFC8C9D3),
+    Error = Color(0xFFDC2626)
 )
 
 val DarkColors = AppColors(
@@ -51,6 +53,7 @@ val DarkColors = AppColors(
     TextDark = Color(0xFFEDEDE6),
     Muted = Color(0xFF8B958C),
     Line = Color(0xFF32403A),
+    Error = Color(0xFFF85149),
     isDark = true
 )
 
@@ -71,6 +74,26 @@ val Palette: AppColors
     @Composable
     get() = LocalAppColors.current
 
+/** Buduje Material3 colorScheme z naszej palety — żeby komponenty Material (pola, przyciski,
+ *  kursor, checkbox, menu) miały zielony akcent zamiast domyślnego fioletu, w obu motywach. */
+private fun AppColors.toM3Scheme(dark: Boolean): androidx.compose.material3.ColorScheme {
+    val base = if (dark) androidx.compose.material3.darkColorScheme() else androidx.compose.material3.lightColorScheme()
+    return base.copy(
+        primary = Green, onPrimary = Color.White,
+        primaryContainer = GreenTint, onPrimaryContainer = GreenDark,
+        secondary = GreenDark, onSecondary = Color.White,
+        secondaryContainer = GreenTint, onSecondaryContainer = GreenDark,
+        tertiary = Blue, onTertiary = Color.White,
+        background = Bg, onBackground = TextDark,
+        surface = Card, onSurface = TextDark,
+        surfaceVariant = Bg, onSurfaceVariant = Muted,
+        surfaceContainer = Card, surfaceContainerHigh = Card, surfaceContainerHighest = Card,
+        surfaceContainerLow = Card, surfaceContainerLowest = Bg,
+        outline = Line, outlineVariant = Line,
+        error = Error, onError = Color.White
+    )
+}
+
 /** Motyw aplikacji — "system" (wg telefonu), "light" lub "dark". */
 @Composable
 fun DietetykTheme(themeMode: String = "system", content: @Composable () -> Unit) {
@@ -79,5 +102,8 @@ fun DietetykTheme(themeMode: String = "system", content: @Composable () -> Unit)
         "dark" -> true
         else -> isSystemInDarkTheme()
     }
-    CompositionLocalProvider(LocalAppColors provides if (dark) DarkColors else LightColors) { content() }
+    val colors = if (dark) DarkColors else LightColors
+    CompositionLocalProvider(LocalAppColors provides colors) {
+        androidx.compose.material3.MaterialTheme(colorScheme = colors.toM3Scheme(dark)) { content() }
+    }
 }

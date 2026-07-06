@@ -211,7 +211,8 @@ fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier) {
             ) { Text("📷", fontSize = 20.sp) }
             OutlinedTextField(
                 value = input, onValueChange = { input = it },
-                modifier = Modifier.weight(1f), placeholder = { Text("Napisz do dietetyka…") }, enabled = !vm.sending
+                modifier = Modifier.weight(1f), placeholder = { Text("Napisz do dietetyka…") }, enabled = !vm.sending,
+                shape = RoundedCornerShape(20.dp)
             )
             Button(
                 onClick = { vm.send(input, apiKey); input = "" },
@@ -295,7 +296,7 @@ private fun ApiKeyGate(onSaved: (String) -> Unit) {
     Column(Modifier.fillMaxSize().background(Palette.Bg).systemBarsPadding().imePadding().padding(24.dp), verticalArrangement = Arrangement.Center) {
         Text("Podaj klucz Claude API", color = Palette.TextDark, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Text("Klucz zostaje na Twoim telefonie.", color = Palette.Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 12.dp))
-        OutlinedTextField(value = key, onValueChange = { key = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("sk-ant-…") })
+        OutlinedTextField(value = key, onValueChange = { key = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("sk-ant-…") }, shape = RoundedCornerShape(12.dp))
         Button(
             onClick = { if (key.isNotBlank()) onSaved(key.trim()) },
             colors = ButtonDefaults.buttonColors(containerColor = Palette.Green),

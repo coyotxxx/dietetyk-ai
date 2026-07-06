@@ -24,7 +24,7 @@ class MainActivity : ComponentActivity() {
         val app = application as DietetykApp
         maybeRequestNotifications()
         setContent {
-            MaterialTheme { DietetykTheme(app.themeMode.value) { AppScaffold(app) } }
+            DietetykTheme(app.themeMode.value) { AppScaffold(app) }
         }
     }
 

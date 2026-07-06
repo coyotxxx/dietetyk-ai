@@ -245,17 +245,17 @@ private fun NewMeasurementSheet(onDismiss: () -> Unit, onSave: (Double, Double?,
     androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Card) {
         Column(Modifier.fillMaxWidth().imePadding().padding(20.dp).padding(bottom = 20.dp)) {
             Text("Nowy pomiar", color = Palette.TextDark, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            androidx.compose.material3.OutlinedTextField(
+            androidx.compose.material3.OutlinedTextField(shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp), 
                 value = text, onValueChange = { text = it.replace(',', '.') },
                 label = { Text("Waga w kg") }, keyboardOptions = dec,
                 modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
             )
-            androidx.compose.material3.OutlinedTextField(
+            androidx.compose.material3.OutlinedTextField(shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp), 
                 value = waist, onValueChange = { waist = it.replace(',', '.') },
                 label = { Text("Obwód pasa w cm (opcjonalnie)") }, keyboardOptions = dec,
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
             )
-            androidx.compose.material3.OutlinedTextField(
+            androidx.compose.material3.OutlinedTextField(shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp), 
                 value = bodyfat, onValueChange = { bodyfat = it.replace(',', '.') },
                 label = { Text("Tkanka tłuszczowa % (opcjonalnie)") }, keyboardOptions = dec,
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
