@@ -25,6 +25,9 @@ datetime = "0.6.1"
 # Coil
 coil = "3.0.4"
 
+# Skaner kodów kreskowych (Google Code Scanner — bez uprawnienia CAMERA)
+codeScanner = "16.1.0"
+
 # WorkManager + Hilt Worker
 work = "2.10.0"
 hiltWork = "1.2.0"
@@ -87,6 +90,9 @@ coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref 
 # v1.25.0: GIF decoder + Ktor network engine dla CDN ExerciseDB
 coil-gif = { group = "io.coil-kt.coil3", name = "coil-gif", version.ref = "coil" }
 coil-network-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coil" }
+
+# Skaner kodów
+play-services-code-scanner = { group = "com.google.android.gms", name = "play-services-code-scanner", version.ref = "codeScanner" }
 
 # WorkManager + Hilt Worker
 androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }

@@ -145,11 +145,30 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
         cameraLauncher.launch(uri)
     }
 
+    // Skaner kodów kreskowych → OpenFoodFacts → arkusz wyniku (zaloguj / dodaj do bazy).
+    var scanState by remember { mutableStateOf<ScanState?>(null) }
+    val launchScan = {
+        launchBarcodeScan(context) { code ->
+            if (code.isNullOrBlank()) return@launchBarcodeScan
+            scanState = ScanState.Scanning
+            scope.launch {
+                val off = runCatching { app.offClient.lookup(query = null, barcode = code) }.getOrNull()
+                scanState = if (off != null) ScanState.Found(code, off) else ScanState.NotFound(code)
+            }
+        }
+    }
+    scanState?.let { st ->
+        BarcodeResultSheet(app, st, onDismiss = { scanState = null }, onAskDietitian = { msg ->
+            app.pendingChatMessage = msg; onGoToChat()
+        })
+    }
+
     if (showAddSheet) {
         AddMealSheet(
             onDismiss = { showAddSheet = false },
             onPhoto = { showAddSheet = false; launchCamera() },
-            onBrowseProducts = { showAddSheet = false; onBrowseProducts() }
+            onBrowseProducts = { showAddSheet = false; onBrowseProducts() },
+            onScan = { showAddSheet = false; launchScan() }
         )
     }
 
@@ -296,7 +315,7 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
 }
 
 @Composable
-private fun AddMealSheet(onDismiss: () -> Unit, onPhoto: () -> Unit, onBrowseProducts: () -> Unit) {
+private fun AddMealSheet(onDismiss: () -> Unit, onPhoto: () -> Unit, onBrowseProducts: () -> Unit, onScan: () -> Unit) {
     @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
     androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Card) {
         Column(Modifier.fillMaxWidth().padding(20.dp).padding(bottom = 24.dp)) {
@@ -322,13 +341,13 @@ private fun AddMealSheet(onDismiss: () -> Unit, onPhoto: () -> Unit, onBrowsePro
                 }
             }
             Row(
-                Modifier.fillMaxWidth().padding(top = 10.dp).card(14.dp).background(Palette.Card, RoundedCornerShape(14.dp)).border(1.dp, Palette.Line, RoundedCornerShape(14.dp)).padding(16.dp),
+                Modifier.fillMaxWidth().padding(top = 10.dp).background(Palette.GreenTint, RoundedCornerShape(14.dp)).clickable { onScan() }.padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("🏷️", fontSize = 26.sp)
                 Column(Modifier.padding(start = 12.dp)) {
-                    Text("Skanuj kod kreskowy", color = Palette.Muted, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    Text("Wkrótce — produkt z opakowania", color = Palette.Muted, fontSize = 12.sp)
+                    Text("Skanuj kod kreskowy", color = Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text("Produkt z opakowania → makro z bazy", color = Palette.Muted, fontSize = 12.sp)
                 }
             }
         }

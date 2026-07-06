@@ -16,8 +16,8 @@ android {
         applicationId = "pl.filebit.dietetyk"
         minSdk = 29
         targetSdk = 35
-        versionCode = 53
-        versionName = "1.1.1"
+        versionCode = 54
+        versionName = "1.2.0"
 
         // Klucz Claude z local.properties (poza gitem) → BuildConfig. Pusty w czystym buildzie.
         val props = Properties().apply {
@@ -57,6 +57,9 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)
     implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.play.services.code.scanner)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
     testImplementation(libs.junit)

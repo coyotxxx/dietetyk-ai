@@ -18,7 +18,8 @@ data class OffProduct(
     val kcal: Int,
     val proteinG: Double,
     val carbsG: Double,
-    val fatG: Double
+    val fatG: Double,
+    val imageUrl: String? = null
 )
 
 /** Pobiera produkt z OpenFoodFacts (po kodzie kreskowym lub nazwie). Wartości na 100 g. */
@@ -30,10 +31,10 @@ class OpenFoodFactsClient {
 
     suspend fun lookup(query: String?, barcode: String?): OffProduct? = withContext(Dispatchers.IO) {
         val url = if (!barcode.isNullOrBlank()) {
-            "https://world.openfoodfacts.org/api/v2/product/${barcode.trim()}.json?fields=product_name,nutriments"
+            "https://world.openfoodfacts.org/api/v2/product/${barcode.trim()}.json?fields=product_name,nutriments,image_front_thumb_url,image_front_small_url"
         } else if (!query.isNullOrBlank()) {
             val q = URLEncoder.encode(query.trim(), "UTF-8")
-            "https://world.openfoodfacts.org/cgi/search.pl?search_terms=$q&search_simple=1&action=process&json=1&page_size=5&fields=product_name,nutriments"
+            "https://world.openfoodfacts.org/cgi/search.pl?search_terms=$q&search_simple=1&action=process&json=1&page_size=5&fields=product_name,nutriments,image_front_thumb_url,image_front_small_url"
         } else return@withContext null
 
         val req = Request.Builder().url(url)
@@ -63,7 +64,8 @@ class OpenFoodFactsClient {
                 kcal = kcal.toInt(),
                 proteinG = n["proteins_100g"].num() ?: 0.0,
                 carbsG = n["carbohydrates_100g"].num() ?: 0.0,
-                fatG = n["fat_100g"].num() ?: 0.0
+                fatG = n["fat_100g"].num() ?: 0.0,
+                imageUrl = (p["image_front_small_url"].str() ?: p["image_front_thumb_url"].str())?.takeIf { it.isNotBlank() }
             )
         }
         null

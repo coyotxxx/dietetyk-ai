@@ -25,7 +25,8 @@ data class FoodProductEntity(
     val category: String,
     val source: String = "seed",
     val favorite: Boolean = false,
-    val barcode: String? = null
+    val barcode: String? = null,
+    val imageUrl: String? = null
 )
 
 @Dao
