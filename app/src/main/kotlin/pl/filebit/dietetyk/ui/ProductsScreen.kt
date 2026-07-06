@@ -128,7 +128,8 @@ private fun ProductDetailSheet(app: DietetykApp, p: FoodProductEntity, onDismiss
     androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Card) {
         Column(Modifier.fillMaxWidth().imePadding().padding(20.dp).padding(bottom = 24.dp)) {
             Text(p.name, color = Palette.TextDark, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
-            Text("na 100 g surowego produktu", color = Palette.Muted, fontSize = 12.sp, modifier = Modifier.padding(bottom = 12.dp))
+            val srcLabel = when (p.source) { "user" -> "dodane ręcznie · " ; "scan" -> "zeskanowane · "; "off" -> "z OpenFoodFacts · "; else -> "" }
+            Text("$srcLabel"+"na 100 g surowego produktu", color = Palette.Muted, fontSize = 12.sp, modifier = Modifier.padding(bottom = 12.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 MacroTile("${p.kcal}", "kcal", Palette.Orange, Modifier.weight(1f))
                 MacroTile(fmt(p.proteinG), "białko", Palette.Green, Modifier.weight(1f))
@@ -159,6 +160,14 @@ private fun ProductDetailSheet(app: DietetykApp, p: FoodProductEntity, onDismiss
                     }.padding(vertical = 14.dp),
                 contentAlignment = Alignment.Center
             ) { Text("Zapisz do dziennika · $kcal kcal", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold) }
+
+            // Usuwanie tylko produktów dodanych przez usera/skan (seed = baseline, nie ruszać).
+            if (p.source != "seed") {
+                Text("🗑 Usuń produkt", color = Palette.Error, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 16.dp).clickable {
+                        scope.launch { app.database.foodProductDao().delete(p.id); onDismiss() }
+                    })
+            }
         }
     }
 }
@@ -236,5 +245,6 @@ private fun catEmoji(cat: String): String = when {
     cat.contains("strącz", true) || cat.contains("stracz", true) -> "🫘"
     cat.contains("napó", true) || cat.contains("napo", true) -> "🥤"
     cat.contains("słody", true) || cat.contains("slody", true) -> "🍫"
-    else -> "🍽️"
+    cat.contains("przypraw", true) -> "🧂"
+    else -> "📦"
 }

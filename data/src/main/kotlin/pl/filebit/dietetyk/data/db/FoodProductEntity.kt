@@ -53,6 +53,9 @@ interface FoodProductDao {
     @Insert
     suspend fun insert(item: FoodProductEntity): Long
 
+    @Query("DELETE FROM food_products WHERE id = :id")
+    suspend fun delete(id: Long)
+
     @Insert
     suspend fun insertAll(items: List<FoodProductEntity>)
 }
