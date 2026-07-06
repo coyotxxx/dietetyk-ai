@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -184,7 +185,16 @@ fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier) {
     }
 
     Column(modifier.fillMaxSize().background(Palette.Bg).imePadding().padding(12.dp)) {
-        Text("Dietetyk AI", color = Palette.TextDark, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 4.dp)) {
+            Box(
+                Modifier.size(40.dp).background(Palette.Green, androidx.compose.foundation.shape.CircleShape),
+                contentAlignment = Alignment.Center
+            ) { Text("🌱", fontSize = 20.sp) }
+            Column(Modifier.padding(start = 10.dp)) {
+                Text("Dietetyk AI", color = Palette.TextDark, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                Text("● online", color = Palette.Green, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+        }
         LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(vm.messages) { msg -> MessageItem(msg, vm.sending) { vm.send(it, apiKey) } }
             if (vm.sending) item { Text("Dietetyk pisze…", color = Palette.Green, fontSize = 13.sp) }

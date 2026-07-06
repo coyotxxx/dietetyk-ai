@@ -47,7 +47,7 @@ private fun MealCard(app: DietetykApp, index: Int, meal: PlanMeal) {
     var expanded by remember { mutableStateOf(false) }
     var recipe by remember { mutableStateOf<List<String>?>(null) }
     var loading by remember { mutableStateOf(false) }
-    var variant by remember { mutableStateOf(0) }
+    var variant by remember { mutableStateOf(app.settings.recipeVariant) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
@@ -96,7 +96,7 @@ private fun MealCard(app: DietetykApp, index: Int, meal: PlanMeal) {
                         RECIPE_VARIANTS.forEachIndexed { vi, label ->
                             Box(
                                 Modifier.weight(1f).background(if (vi == variant) Palette.Green else Palette.GreenTint, RoundedCornerShape(10.dp))
-                                    .clickable { variant = vi }.padding(vertical = 8.dp),
+                                    .clickable { variant = vi; app.settings.recipeVariant = vi }.padding(vertical = 8.dp),
                                 contentAlignment = Alignment.Center
                             ) { Text(label, color = if (vi == variant) androidx.compose.ui.graphics.Color.White else Palette.GreenDark, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
                         }

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -38,29 +39,50 @@ fun NotificationsScreen(app: DietetykApp, onBack: () -> Unit) {
             Text("← Powiadomienia", color = Palette.TextDark, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold,
                 modifier = Modifier.clickable { onBack() })
         }
-        Box(
-            Modifier.padding(top = 12.dp).background(Palette.Green, RoundedCornerShape(12.dp))
-                .clickable { app.triggerCheckInNow() }.padding(horizontal = 16.dp, vertical = 10.dp)
-        ) { Text("Sprawdź teraz (wizyta kontrolna)", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
-
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(top = 12.dp)) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(top = 16.dp)) {
             if (items.isEmpty()) {
                 Text("Brak powiadomień. Dietetyk odezwie się przy wizycie kontrolnej.", color = Palette.Muted, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp))
             }
             items.forEach { n ->
-                Column(Modifier.fillMaxWidth().padding(bottom = 8.dp).background(Palette.Card, RoundedCornerShape(14.dp)).padding(14.dp)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(n.title, color = Palette.Green, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                        Text(timeLabel(n.timeMs), color = Palette.Muted, fontSize = 11.sp)
+                Row(
+                    Modifier.fillMaxWidth().padding(bottom = 8.dp).card(14.dp).background(Palette.Card, RoundedCornerShape(14.dp)).padding(14.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Box(Modifier.size(38.dp).background(Palette.GreenTint, RoundedCornerShape(11.dp)), contentAlignment = Alignment.Center) {
+                        Text(notifIcon(n.title, n.body), fontSize = 18.sp)
                     }
-                    Text(n.body, color = Palette.TextDark, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
+                    Column(Modifier.padding(start = 12.dp).fillMaxWidth()) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(n.title, color = Palette.Green, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f, fill = false))
+                            Text(timeLabel(n.timeMs), color = Palette.Muted, fontSize = 11.sp)
+                        }
+                        Text(n.body, color = Palette.TextDark, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
+                    }
                 }
             }
         }
     }
 }
 
+private fun notifIcon(title: String, body: String): String {
+    val t = (title + " " + body).lowercase()
+    return when {
+        listOf("wizyt", "kontroln", "check").any { t.contains(it) } -> "🩺"
+        listOf("zważ", "waga", "pomiar", "obwód").any { t.contains(it) } -> "⚖️"
+        listOf("posił", "jedz", "loguj", "kalor").any { t.contains(it) } -> "🍽️"
+        listOf("plan").any { t.contains(it) } -> "🥗"
+        else -> "🔔"
+    }
+}
+
 private fun timeLabel(ms: Long): String {
-    val d = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault())
-    return "%02d.%02d %02d:%02d".format(d.dayOfMonth, d.monthValue, d.hour, d.minute)
+    val min = (System.currentTimeMillis() - ms) / 60000
+    return when {
+        min < 1 -> "przed chwilą"
+        min < 60 -> "$min min temu"
+        min < 24 * 60 -> "${min / 60} godz. temu"
+        min < 48 * 60 -> "wczoraj"
+        min < 7 * 24 * 60 -> "${min / (24 * 60)} dni temu"
+        else -> Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()).let { "%02d.%02d.%d".format(it.dayOfMonth, it.monthValue, it.year) }
+    }
 }

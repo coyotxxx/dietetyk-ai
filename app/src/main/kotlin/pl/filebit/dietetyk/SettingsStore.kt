@@ -54,6 +54,11 @@ class SettingsStore(context: Context) {
         get() = prefs.getString("chat_history", "[]").orEmpty()
         set(v) { prefs.edit().putString("chat_history", v).apply() }
 
+    /** Domyślny wariant przepisu (0=Tradycyjnie, 1=Air Fryer, 2=Thermomix). */
+    var recipeVariant: Int
+        get() = prefs.getInt("recipe_variant", 0)
+        set(v) { prefs.edit().putInt("recipe_variant", v).apply() }
+
     /** Ton rozmowy dietetyka: "gentle" | "balanced" | "tough". */
     var aiTone: String
         get() = prefs.getString("ai_tone", "balanced").orEmpty()
