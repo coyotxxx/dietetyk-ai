@@ -65,9 +65,24 @@ fun ProductsScreen(app: DietetykApp, onBack: () -> Unit) {
     val toggleStar: (FoodProductEntity) -> Unit = { p -> scope.launch { app.database.foodProductDao().setFavorite(p.id, !p.favorite) } }
 
     var editProduct by remember { mutableStateOf<FoodProductEntity?>(null) }
+    // Wyszukiwanie w OpenFoodFacts (baza 108 to za mało — dociągamy z sieci na żądanie).
+    var offState by remember { mutableStateOf<ScanState?>(null) }
+    var offSearching by remember { mutableStateOf(false) }
+    val searchOff = {
+        val term = query.trim()
+        if (term.length >= 2 && !offSearching) {
+            offSearching = true; offState = ScanState.Scanning
+            scope.launch {
+                val off = runCatching { app.offClient.lookup(query = term, barcode = null) }.getOrNull()
+                offState = if (off != null) ScanState.Found("", off) else ScanState.NotFound(term)
+                offSearching = false
+            }
+        }
+    }
     if (showAdd) ProductFormDialog(app, null) { showAdd = false }
     editProduct?.let { ep -> ProductFormDialog(app, ep) { editProduct = null } }
     detail?.let { p -> ProductDetailSheet(app, p, onDismiss = { detail = null }, onEdit = { detail = null; editProduct = it }) }
+    offState?.let { st -> BarcodeResultSheet(app, st, onDismiss = { offState = null }, onAskDietitian = { app.pendingChatMessage = it; offState = null }) }
 
     // Tytuł nagłówka + akcja wstecz zależnie od poziomu.
     val headerTitle = when {
@@ -99,10 +114,24 @@ fun ProductsScreen(app: DietetykApp, onBack: () -> Unit) {
 
         LazyColumn(Modifier.fillMaxWidth().padding(horizontal = 16.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 12.dp, bottom = 24.dp)) {
             when {
-                // 1) Wyszukiwanie → płaska lista wyników z całej bazy.
+                // 1) Wyszukiwanie → wyniki z bazy lokalnej + dociąganie z OpenFoodFacts.
                 searching -> {
                     items(filtered, key = { it.id }) { p -> ProductRow(p, onTap = { detail = p }, onStar = { toggleStar(p) }) }
-                    if (filtered.isEmpty()) item { EmptyState(all.isEmpty(), query) { showAdd = true } }
+                    if (filtered.isEmpty()) item {
+                        Text("Brak w Twojej bazie.", color = Palette.Muted, fontSize = 14.sp, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
+                    }
+                    item {
+                        Row(
+                            Modifier.fillMaxWidth().padding(top = 8.dp).clip(RoundedCornerShape(14.dp)).background(Palette.GreenTint, RoundedCornerShape(14.dp)).clickable { searchOff() }.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("🔍", fontSize = 22.sp)
+                            Column(Modifier.padding(start = 12.dp)) {
+                                Text(if (offSearching) "Szukam: $query…" else "Szukaj „$query” w OpenFoodFacts", color = Palette.GreenDark, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                                Text("Miliony produktów — makro + zaloguj porcję", color = Palette.Muted, fontSize = 12.sp)
+                            }
+                        }
+                    }
                 }
                 // 2) Poziom kategorii → lista folderów (ikona kategorii + nazwa + licznik).
                 selectedCat == null -> {

@@ -169,7 +169,8 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
             onDismiss = { showAddSheet = false },
             onPhoto = { showAddSheet = false; launchCamera() },
             onBrowseProducts = { showAddSheet = false; onBrowseProducts() },
-            onScan = { showAddSheet = false; launchScan() }
+            onScan = { showAddSheet = false; launchScan() },
+            onTellDietitian = { showAddSheet = false; onGoToChat() }
         )
     }
 
@@ -309,48 +310,46 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
                 .clickable { showAddSheet = true }.padding(horizontal = 20.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("📷", fontSize = 18.sp)
-            Text("Sfotografuj posiłek", color = androidx.compose.ui.graphics.Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
+            Text("+", color = androidx.compose.ui.graphics.Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text("Dodaj posiłek", color = androidx.compose.ui.graphics.Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
         }
     }
 }
 
 @Composable
-private fun AddMealSheet(onDismiss: () -> Unit, onPhoto: () -> Unit, onBrowseProducts: () -> Unit, onScan: () -> Unit) {
+private fun AddMealSheet(onDismiss: () -> Unit, onPhoto: () -> Unit, onBrowseProducts: () -> Unit, onScan: () -> Unit, onTellDietitian: () -> Unit) {
     @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
     androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Card) {
         Column(Modifier.fillMaxWidth().padding(20.dp).padding(bottom = 24.dp)) {
             Text("Co chcesz dodać?", color = Palette.TextDark, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
+            // Szukaj — najszybsza, deterministyczna ścieżka; wyróżniona (pełny zielony).
             Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Palette.GreenTint, RoundedCornerShape(14.dp)).clickable { onPhoto() }.padding(16.dp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Palette.Green, RoundedCornerShape(14.dp)).clickable { onBrowseProducts() }.padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("📷", fontSize = 26.sp)
+                Text("🔍", fontSize = 26.sp)
                 Column(Modifier.padding(start = 12.dp)) {
-                    Text("Zdjęcie posiłku", color = Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    Text("AI rozpozna danie i policzy kalorie", color = Palette.Muted, fontSize = 12.sp)
+                    Text("Szukaj produkt", color = androidx.compose.ui.graphics.Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text("Baza + OpenFoodFacts → wybierz i zaloguj porcję", color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.85f), fontSize = 12.sp)
                 }
             }
-            Row(
-                Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(14.dp)).background(Palette.GreenTint, RoundedCornerShape(14.dp)).clickable { onBrowseProducts() }.padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("🥫", fontSize = 26.sp)
-                Column(Modifier.padding(start = 12.dp)) {
-                    Text("Przeglądaj produkty", color = Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    Text("Baza z makro, ulubione, zaloguj porcję", color = Palette.Muted, fontSize = 12.sp)
-                }
-            }
-            Row(
-                Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(14.dp)).background(Palette.GreenTint, RoundedCornerShape(14.dp)).clickable { onScan() }.padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("🏷️", fontSize = 26.sp)
-                Column(Modifier.padding(start = 12.dp)) {
-                    Text("Skanuj kod kreskowy", color = Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    Text("Produkt z opakowania → makro z bazy", color = Palette.Muted, fontSize = 12.sp)
-                }
-            }
+            AddOption("📷", "Zdjęcie posiłku", "AI rozpozna danie i policzy kalorie") { onPhoto() }
+            AddOption("🏷️", "Skanuj kod kreskowy", "Produkt z opakowania → makro z bazy") { onScan() }
+            AddOption("💬", "Powiedz dietetykowi", "Np. „zjadłem obiad u mamy, kotlety z ziemniakami\"") { onTellDietitian() }
+        }
+    }
+}
+
+@Composable
+private fun AddOption(emoji: String, title: String, subtitle: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(14.dp)).background(Palette.GreenTint, RoundedCornerShape(14.dp)).clickable { onClick() }.padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(emoji, fontSize = 26.sp)
+        Column(Modifier.padding(start = 12.dp)) {
+            Text(title, color = Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text(subtitle, color = Palette.Muted, fontSize = 12.sp)
         }
     }
 }
