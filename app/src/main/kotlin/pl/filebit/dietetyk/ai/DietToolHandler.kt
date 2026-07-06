@@ -157,6 +157,9 @@ class DietToolHandler(
         val mealsArr = input["meals"]?.let { it as? JsonArray }
             ?: return ToolResult("Brak posiłków (meals).", isError = true)
         if (mealsArr.isEmpty()) return ToolResult("Plan jest pusty.", isError = true)
+        // Tryb tygodniowy: dayOfWeek 1-7. Pominięty = dzisiejszy dzień (zgodność wsteczna).
+        val dow = (input.int("dayOfWeek")?.coerceIn(1, 7)) ?: pl.filebit.dietetyk.ui.PlanData.todayDow()
+        val weeklyMode = input.int("dayOfWeek") != null
 
         val goal = app.profileRepo.get()?.let {
             GoalPipeline.compute(it, latestMeasuredWeightKg = app.weightRepo.latest()?.weightKg)
@@ -191,12 +194,12 @@ class DietToolHandler(
             productsByName = byName
         )
         val result = PlanValidator.validate(plan, ctx)
-        if (!result.isValid && planRetries < 2) {
-            // Guardrail: silnik odrzuca plan → AI dostaje feedback i poprawia gramatury (maks. 2 próby).
+        // W trybie TYGODNIOWYM nie retry'ujemy (7 dni × 2 próby > limit tur → korupcja) — fallback-zapis
+        // z ostrzeżeniem. W trybie jednodniowym: do 2 prób poprawy, potem fallback.
+        if (!result.isValid && !weeklyMode && planRetries < 2) {
             planRetries++
             return ToolResult(PlanValidator.buildRetryFeedback(result), isError = true)
         }
-        // Sukces LUB fallback po 2 próbach — zapisujemy plan (lepiej drobna rozbieżność niż zapętlenie).
         planRetries = 0
 
         // Per-posiłek przeliczone z bazy (do wyświetlenia na Dziś/Plan)
@@ -224,12 +227,15 @@ class DietToolHandler(
                 })
             }
         }
-        val planJson = buildJsonObject { put("meals", mealsJson) }.toString()
-        app.database.planDao().upsert(PlanEntity(planJson = planJson, targetKcal = goal.kcal, updatedAt = now, dirty = true))
+        // Zapis do dnia w mapie tygodnia (zachowuje pozostałe dni). Stary format {meals} migruje się sam.
+        val existing = app.database.planDao().get()?.planJson ?: "{}"
+        val newJson = pl.filebit.dietetyk.ui.PlanData.setDayMeals(existing, dow, mealsJson, goal.kcal)
+        app.database.planDao().upsert(PlanEntity(planJson = newJson, targetKcal = goal.kcal, updatedAt = now, dirty = true))
 
         val ct = result.correctedTotal
         val warn = if (result.warnings.isNotEmpty()) " Uwagi: " + result.warnings.take(3).joinToString("; ") { it.message } else ""
-        return ToolResult("Zapisałem plan (przeliczony z bazy): ${plan.meals.size} posiłków, ${ct.totalKcal} kcal — B ${ct.totalProteinG}g / W ${ct.totalCarbsG}g / T ${ct.totalFatG}g (cel ${goal.kcal} kcal).$warn")
+        val dayName = pl.filebit.dietetyk.ui.DOW_LONG[dow - 1]
+        return ToolResult("Zapisałem plan na $dayName (przeliczony z bazy): ${plan.meals.size} posiłków, ${ct.totalKcal} kcal — B ${ct.totalProteinG}g / W ${ct.totalCarbsG}g / T ${ct.totalFatG}g (cel ${goal.kcal} kcal).$warn")
     }
 
     /** Dopasowanie nazwy do produktu bazy: exact → substring (spójne z PlanValidator). */

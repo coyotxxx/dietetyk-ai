@@ -55,10 +55,11 @@ object AiToolCatalog {
             readsData = true, emitsNumbers = true
         ),
         AiToolSpec(
-            "save_diet_plan", "Zapisz plan dnia. Składniki podaj STRUKTURALNIE (produkt+gramatura surowa) — silnik SAM przelicza kcal/makro z bazy produktów i sprawdza zgodność z celem. Używaj nazw produktów z bazy (search_products).",
+            "save_diet_plan", "Zapisz plan JEDNEGO dnia. Składniki podaj STRUKTURALNIE (produkt+gramatura surowa) — silnik SAM przelicza kcal/makro z bazy produktów i sprawdza zgodność z celem. Używaj nazw produktów z bazy (search_products). Plan jest TYGODNIOWY: podaj `dayOfWeek` (1=Pn…7=Nd), by zapisać dany dzień; przy układaniu całego tygodnia wołaj to narzędzie RAZ NA DZIEŃ (7 wywołań) i RÓŻNICUJ posiłki między dniami (nie 7× to samo).",
             listOf(
                 AiToolParam("meals", "array", true,
-                    "tablica posiłków; każdy: {\"name\":\"Owsianka z malinami\",\"timeHint\":\"7:30\",\"prepMinutes\":10,\"ingredients\":[{\"productName\":\"Płatki owsiane\",\"grams\":60},{\"productName\":\"Mleko 2%\",\"grams\":200},{\"productName\":\"Maliny\",\"grams\":100}]}")
+                    "tablica posiłków; każdy: {\"name\":\"Owsianka z malinami\",\"timeHint\":\"7:30\",\"prepMinutes\":10,\"ingredients\":[{\"productName\":\"Płatki owsiane\",\"grams\":60},{\"productName\":\"Mleko 2%\",\"grams\":200},{\"productName\":\"Maliny\",\"grams\":100}]}"),
+                AiToolParam("dayOfWeek", "int", false, "dzień tygodnia 1-7 (1=poniedziałek…7=niedziela); pominięty = dzisiejszy dzień")
             ),
             mutating = true, emitsNumbers = true
         ),

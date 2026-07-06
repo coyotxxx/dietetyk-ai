@@ -45,6 +45,15 @@ private data class PlanMeal(
 private val RECIPE_VARIANTS = listOf("Tradycyjnie", "Air Fryer", "Thermomix")
 private val RECIPE_KEYS = listOf("tradycyjnie", "airfryer", "thermomix")
 
+/** Przycisk akcji na ekranie Plan (pełna szerokość). */
+@Composable
+private fun PlanActionButton(text: String, bg: androidx.compose.ui.graphics.Color, textColor: androidx.compose.ui.graphics.Color, topPad: androidx.compose.ui.unit.Dp = 0.dp, onClick: () -> Unit) {
+    Box(
+        Modifier.fillMaxWidth().padding(top = topPad).background(bg, RoundedCornerShape(14.dp)).clickable { onClick() }.padding(vertical = 14.dp),
+        contentAlignment = Alignment.Center
+    ) { Text(text, color = textColor, fontSize = 15.sp, fontWeight = FontWeight.Bold) }
+}
+
 /** Parsuje tablicę posiłków (z planJson) na listę PlanMeal. Tolerancyjne — null/błąd → pusta lista. */
 private fun parsePlanMeals(mealsArr: kotlinx.serialization.json.JsonArray?): List<PlanMeal> {
     if (mealsArr == null) return emptyList()
@@ -166,12 +175,13 @@ private fun MealCard(app: DietetykApp, index: Int, meal: PlanMeal) {
 }
 
 @Composable
-fun PlanScreen(app: DietetykApp) {
+fun PlanScreen(app: DietetykApp, onGoToChat: () -> Unit = {}) {
     var planJson by remember { mutableStateOf<String?>(null) }
     var meals by remember { mutableStateOf<List<PlanMeal>?>(null) }
     var targetKcal by remember { mutableStateOf(0) }
     var loaded by remember { mutableStateOf(false) }
     var showShopping by remember { mutableStateOf(false) }
+    var shoppingWeek by remember { mutableStateOf(true) }
     var selectedDay by remember { mutableStateOf(PlanData.todayDow()) }
     var daysWithPlan by remember { mutableStateOf(emptySet<Int>()) }
     var reloadKey by remember { mutableStateOf(0) }
@@ -220,15 +230,20 @@ fun PlanScreen(app: DietetykApp) {
                 color = Palette.Muted, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp, bottom = 10.dp)
             )
             if (loaded) {
+                // Ułóż przez dietetyka (AI)
+                PlanActionButton("🍽 Ułóż ${DOW_LONG[selectedDay - 1].lowercase()} w rozmowie", Palette.Green, androidx.compose.ui.graphics.Color.White) {
+                    app.pendingChatMessage = "Ułóż plan na ${DOW_LONG[selectedDay - 1]} (dayOfWeek $selectedDay)."; onGoToChat()
+                }
+                PlanActionButton("📅 Ułóż cały tydzień", Palette.GreenTint, Palette.GreenDark, topPad = 8.dp) {
+                    app.pendingChatMessage = "Ułóż mi plan na cały tydzień (7 dni), różnicując posiłki między dniami."; onGoToChat()
+                }
                 val sources = (1..7).filter { it != selectedDay && daysWithPlan.contains(it) }
-                if (sources.isEmpty()) {
-                    Text("Poproś Dietetyka w rozmowie, żeby ułożył plan.", color = Palette.Muted, fontSize = 13.sp)
-                } else {
-                    Text("Skopiuj z innego dnia:", color = Palette.TextDark, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 6.dp))
+                if (sources.isNotEmpty()) {
+                    Text("…albo skopiuj z innego dnia:", color = Palette.TextDark, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 14.dp, bottom = 6.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         sources.forEach { src ->
                             Box(
-                                Modifier.background(Palette.GreenTint, RoundedCornerShape(10.dp)).clickable {
+                                Modifier.background(Palette.Card, RoundedCornerShape(10.dp)).border(1.dp, Palette.Line, RoundedCornerShape(10.dp)).clickable {
                                     val pj = planJson ?: return@clickable
                                     val newJson = PlanData.copyDay(pj, src, selectedDay, targetKcal) ?: return@clickable
                                     scope.launch {
@@ -236,7 +251,7 @@ fun PlanScreen(app: DietetykApp) {
                                         reloadKey++
                                     }
                                 }.padding(horizontal = 12.dp, vertical = 8.dp)
-                            ) { Text(DOW_SHORT[src - 1], color = Palette.GreenDark, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+                            ) { Text(DOW_SHORT[src - 1], color = Palette.TextDark, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
                         }
                     }
                 }
@@ -249,20 +264,35 @@ fun PlanScreen(app: DietetykApp) {
 
         m.forEachIndexed { i, meal -> MealCard(app, i, meal) }
 
-        // === Lista zakupów (agregacja + kategorie + odhaczanie) ===
-        val shopping = m.flatMap { it.ings }.filter { it.name.isNotBlank() }
+        // === Lista zakupów — domyślnie SUMA TYGODNIA (przełącznik dzień/tydzień) ===
+        val weekIngs = remember(planJson) {
+            val pj = planJson
+            if (pj == null) emptyList() else (1..7).flatMap { d -> parsePlanMeals(PlanData.mealsForDay(pj, d)).flatMap { it.ings } }
+        }
+        val srcIngs = if (shoppingWeek) weekIngs else m.flatMap { it.ings }
+        val shopping = srcIngs.filter { it.name.isNotBlank() }
             .groupBy { it.name }
             .map { (name, items) -> Triple(name, items.sumOf { it.grams }, items.first().cat) }
         val byCat = shopping.groupBy { it.third }.toSortedMap()
         if (shopping.isNotEmpty()) {
             Row(
-                Modifier.fillMaxWidth().padding(top = 4.dp)
+                Modifier.fillMaxWidth().padding(top = 8.dp)
                     .background(Palette.Green, RoundedCornerShape(14.dp))
                     .clickable { showShopping = !showShopping }.padding(14.dp),
                 horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("🛒 Lista zakupów (${shopping.size})", color = androidx.compose.ui.graphics.Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text("🛒 Lista zakupów " + (if (shoppingWeek) "na tydzień" else "na dziś") + " (${shopping.size})", color = androidx.compose.ui.graphics.Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 Text(if (showShopping) "▲" else "▼", color = androidx.compose.ui.graphics.Color.White, fontSize = 14.sp)
+            }
+            Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf(true to "Cały tydzień", false to "Ten dzień").forEach { (wk, lbl) ->
+                    Box(
+                        Modifier.weight(1f).background(if (shoppingWeek == wk) Palette.GreenTint else Palette.Card, RoundedCornerShape(10.dp))
+                            .then(if (shoppingWeek != wk) Modifier.border(1.dp, Palette.Line, RoundedCornerShape(10.dp)) else Modifier)
+                            .clickable { shoppingWeek = wk }.padding(vertical = 7.dp),
+                        contentAlignment = Alignment.Center
+                    ) { Text(lbl, color = if (shoppingWeek == wk) Palette.GreenDark else Palette.Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                }
             }
             if (showShopping) {
                 Column(Modifier.fillMaxWidth().padding(top = 8.dp).card(14.dp).background(Palette.Card, RoundedCornerShape(14.dp)).padding(14.dp)) {
@@ -294,6 +324,12 @@ fun PlanScreen(app: DietetykApp) {
                 }
             }
         }
+
+        // Ułóż/uzupełnij cały tydzień przez dietetyka
+        PlanActionButton("📅 Ułóż cały tydzień w rozmowie", Palette.GreenTint, Palette.GreenDark, topPad = 12.dp) {
+            app.pendingChatMessage = "Ułóż mi plan na cały tydzień (7 dni), różnicując posiłki między dniami."; onGoToChat()
+        }
+        androidx.compose.foundation.layout.Spacer(Modifier.size(24.dp))
     }
 }
 

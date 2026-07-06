@@ -17,8 +17,9 @@ class DietitianConversation(
     private val api: ClaudeApi,
     private val tools: JsonArray = ClaudeToolMapper.toolsJson()
 ) {
-    /** Bezpiecznik przed zapętleniem tool-use (gdyby model nie kończył tury). */
-    private val maxToolRounds = 12
+    /** Bezpiecznik przed zapętleniem tool-use (gdyby model nie kończył tury).
+     *  15 = margines na plan tygodniowy (do 7× save_diet_plan + search_products między nimi). */
+    private val maxToolRounds = 15
 
     companion object {
         const val MAX_HISTORY = 40
