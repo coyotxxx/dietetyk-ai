@@ -235,10 +235,17 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
                     Modifier.fillMaxWidth().background(Palette.GreenTint, RoundedCornerShape(16.dp)).padding(16.dp)
                 ) {
                     Text("DIETETYK MÓWI", color = Palette.GreenDark, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
-                    Text(
-                        g.breakdown.deficitLabel + " Loguj posiłki, a dopasuję cel do Twojego realnego metabolizmu.",
-                        color = Palette.TextDark, fontSize = 15.sp, modifier = Modifier.padding(top = 6.dp)
-                    )
+                    // STATUS dnia — zawsze użyteczny i kontekstowy (nie statyczny). Insight AI dojdzie z rozmowy.
+                    val remaining = g.kcal - consumed
+                    val statusMsg = when {
+                        consumed == 0 && meals.isNotEmpty() -> "Dzień przed Tobą 🌱 Na start masz w planie: ${meals.first().name}. Cel na dziś: ${g.kcal} kcal."
+                        consumed == 0 -> "Dzień przed Tobą 🌱 Loguj, co jesz — dopasuję cel do Twojego realnego metabolizmu."
+                        remaining > 200 -> "Zostało Ci $remaining kcal na dziś" + (if (meals.isNotEmpty()) " — masz jeszcze posiłki w planie. Idzie dobrze!" else ". Idzie dobrze!")
+                        remaining in 1..200 -> "Blisko celu — zostało tylko $remaining kcal. Trzymasz się świetnie 👏"
+                        remaining == 0 -> "Cel na dziś trafiony w punkt 🎯 Świetna robota!"
+                        else -> "Dziś ${-remaining} kcal ponad cel — bez dramatu, jutro wyrównamy."
+                    }
+                    Text(statusMsg, color = Palette.TextDark, fontSize = 15.sp, modifier = Modifier.padding(top = 6.dp))
                     Box(
                         Modifier.padding(top = 12.dp).background(Palette.Green, RoundedCornerShape(12.dp))
                             .clickable { onGoToChat() }.padding(horizontal = 18.dp, vertical = 9.dp)
