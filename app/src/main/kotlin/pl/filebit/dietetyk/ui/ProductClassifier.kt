@@ -13,9 +13,17 @@ private data class ProductClass(val keys: List<String>, val emoji: String, val c
 private fun c(emoji: String, category: String, vararg keys: String) = ProductClass(keys.toList(), emoji, category)
 
 private val PRODUCT_CLASSES: List<ProductClass> = listOf(
-    // === specjalne (przed ogólnymi) ===
+    // === specjalne: klucze będące podciągiem ogólniejszych z INNEJ kategorii — MUSZĄ być na górze ===
     c("🥥", "Tłuszcze", "mleko kokos", "olej kokos"),
     c("🥛", "Napoje", "mleko roślin", "mleko roslin", "napój sojow", "napoj sojow", "napój owsian", "napoj owsian", "napój migdał", "napoj migdal"),
+    c("🥜", "Orzechy", "masło orzech", "maslo orzech", "masło arachid", "maslo arachid", "masło migdał", "maslo migdal"), // przed „masło"→Nabiał
+    c("🍦", "Słodycze", "deser", "lodowy"), // „deser" zawiera „ser "→Nabiał, musi być wyżej
+    // Typ produktu wygrywa nad SMAKIEM (jogurt truskawkowy=Nabiał, nie Owoce; napój malinowy=Napoje):
+    c("🥛", "Nabiał", "jogurt", "kefir", "maślank", "maslank", "skyr", "śmietan", "smietan"),
+    c("🧀", "Nabiał", "serek", "twaróg", "twarog"),
+    c("🥛", "Nabiał", "mleko"), // po „mleko kokos"/„mleko roślin" powyżej
+    c("🧃", "Napoje", " sok", "nektar", "smoothie"), // „sok pomarańczowy"=Napoje, nie Owoce
+    c("🍅", "Warzywa", "pomidor"), // „pomidor malinowy" — przed „malin"→Owoce
 
     // === OWOCE ===
     c("🍎", "Owoce", "jabłk", "jablk"),
@@ -28,7 +36,7 @@ private val PRODUCT_CLASSES: List<ProductClass> = listOf(
     c("🍇", "Owoce", "winogron", "rodzynk"),
     c("🍑", "Owoce", "brzoskwin", "morel", "nektaryn", "śliwk", "sliwk"),
     c("🍍", "Owoce", "ananas"),
-    c("🫐", "Owoce", "borówk", "borowk", "jagod", "aronia"),
+    c("🫐", "Owoce", "borówk", "borowk", "jagod", "aronia", "porzeczk"),
     c("🍒", "Owoce", "wiśni", "wisni", "czereśni", "czeresni"),
     c("🥝", "Owoce", "kiwi", "agrest"),
     c("🥭", "Owoce", "mango", "papaj"),
@@ -53,7 +61,7 @@ private val PRODUCT_CLASSES: List<ProductClass> = listOf(
     c("🍄", "Warzywa", "grzyb", "pieczark", "boczniak", "kurk"),
     c("🎃", "Warzywa", "dyni", "dynia", "cukini", "kabacz"),
     c("🥕", "Warzywa", "burak", "rzodkiew", "rzepa", "pietruszk", "warzyw"),
-    c("🍅", "Warzywa", "cukinia", "szparag", "karczoch", "por"),
+    c("🥬", "Warzywa", "szparag", "karczoch", "rabarbar"),
 
     // === STRĄCZKI ===
     c("🫘", "Strączki", "fasol", "soczewic", "ciecierzyc", "cieciork", "groch", "groszek", "bób", "bob", "hummus", "edamame", "soja", "tofu"),
@@ -94,7 +102,7 @@ private val PRODUCT_CLASSES: List<ProductClass> = listOf(
     c("☕", "Napoje", "kaw", "espresso", "latte", "cappuccino"),
     c("🍵", "Napoje", "herbat", "matcha", "napar"),
     c("💧", "Napoje", "woda ", "woda"),
-    c("🧃", "Napoje", "sok", "nektar", "smoothie", "koktajl"),
+    c("🧃", "Napoje", " sok", "nektar", "smoothie", "koktajl"),
     c("🥤", "Napoje", "cola", "napój gazow", "napoj gazow", "lemoniad", "oranżad", "oranzad", "izoton", "energetyk"),
     c("🍺", "Napoje", "piwo", "wino", "alkohol"),
 
