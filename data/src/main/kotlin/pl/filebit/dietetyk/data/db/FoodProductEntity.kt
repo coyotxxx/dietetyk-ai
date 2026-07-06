@@ -54,6 +54,13 @@ interface FoodProductDao {
     @Insert
     suspend fun insert(item: FoodProductEntity): Long
 
+    @androidx.room.Update
+    suspend fun update(item: FoodProductEntity)
+
+    /** Produkt po kodzie kreskowym — do deduplikacji przy skanowaniu. */
+    @Query("SELECT * FROM food_products WHERE barcode = :barcode LIMIT 1")
+    suspend fun byBarcode(barcode: String): FoodProductEntity?
+
     @Query("DELETE FROM food_products WHERE id = :id")
     suspend fun delete(id: Long)
 

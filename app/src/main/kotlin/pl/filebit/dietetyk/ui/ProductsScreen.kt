@@ -51,22 +51,39 @@ fun ProductsScreen(app: DietetykApp, onBack: () -> Unit) {
     var detail by remember { mutableStateOf<FoodProductEntity?>(null) }
     val scope = rememberCoroutineScope()
 
-    val filtered = remember(all, query) {
-        val q = query.trim().lowercase()
+    // Drill-down: null = lista kategorii, "★" = ulubione, inaczej nazwa kategorii.
+    var selectedCat by remember { mutableStateOf<String?>(null) }
+    val q = query.trim().lowercase()
+    val searching = q.isNotBlank()
+    val filtered = remember(all, q) {
         if (q.isBlank()) all else all.filter { it.nameNorm.contains(q) || it.name.lowercase().contains(q) }
     }
-    val favorites = filtered.filter { it.favorite }
-    val byCategory = filtered.filterNot { it.favorite }.groupBy { it.category.ifBlank { "Inne" } }.toSortedMap()
+    // Kategorie z licznikami (posortowane alfabetycznie).
+    val categories = remember(all) { all.groupBy { it.category.ifBlank { "Inne" } }.toSortedMap() }
+    val favCount = all.count { it.favorite }
+
+    val toggleStar: (FoodProductEntity) -> Unit = { p -> scope.launch { app.database.foodProductDao().setFavorite(p.id, !p.favorite) } }
 
     if (showAdd) AddProductDialog(app) { showAdd = false }
     detail?.let { p -> ProductDetailSheet(app, p, onDismiss = { detail = null }) }
+
+    // Tytuł nagłówka + akcja wstecz zależnie od poziomu.
+    val headerTitle = when {
+        searching -> "← Produkty"
+        selectedCat == "★" -> "← Ulubione"
+        selectedCat != null -> "← $selectedCat"
+        else -> "← Produkty"
+    }
+    val onHeaderBack = {
+        if (!searching && selectedCat != null) selectedCat = null else onBack()
+    }
 
     Column(Modifier.fillMaxSize().background(Palette.Bg).imePadding()) {
         Row(
             Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("← Produkty", color = Palette.TextDark, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.clickable { onBack() })
+            Text(headerTitle, color = Palette.TextDark, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.clickable { onHeaderBack() })
             Box(Modifier.background(Palette.Green, RoundedCornerShape(12.dp)).clickable { showAdd = true }.padding(horizontal = 14.dp, vertical = 8.dp)) {
                 Text("+ Dodaj", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
@@ -79,25 +96,61 @@ fun ProductsScreen(app: DietetykApp, onBack: () -> Unit) {
         )
 
         LazyColumn(Modifier.fillMaxWidth().padding(horizontal = 16.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 12.dp, bottom = 24.dp)) {
-            if (favorites.isNotEmpty()) {
-                item { CategoryHeader("⭐ Ulubione") }
-                items(favorites, key = { "f${it.id}" }) { p -> ProductRow(p, onTap = { detail = p }, onStar = { scope.launch { app.database.foodProductDao().setFavorite(p.id, !p.favorite) } }) }
-            }
-            byCategory.forEach { (cat, list) ->
-                item { CategoryHeader("${catEmoji(cat)} ${cat.uppercase()}") }
-                items(list, key = { it.id }) { p -> ProductRow(p, onTap = { detail = p }, onStar = { scope.launch { app.database.foodProductDao().setFavorite(p.id, !p.favorite) } }) }
-            }
-            if (filtered.isEmpty()) {
-                item {
-                    Column(Modifier.fillMaxWidth().padding(top = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("🔍", fontSize = 34.sp)
-                        Text(if (all.isEmpty()) "Wczytuję produkty…" else "Nie znaleziono: $query", color = Palette.Muted, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp))
-                        if (all.isNotEmpty()) Box(Modifier.padding(top = 12.dp).background(Palette.GreenTint, RoundedCornerShape(12.dp)).clickable { showAdd = true }.padding(horizontal = 16.dp, vertical = 10.dp)) {
-                            Text("Dodaj ręcznie", color = Palette.GreenDark, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                        }
+            when {
+                // 1) Wyszukiwanie → płaska lista wyników z całej bazy.
+                searching -> {
+                    items(filtered, key = { it.id }) { p -> ProductRow(p, onTap = { detail = p }, onStar = { toggleStar(p) }) }
+                    if (filtered.isEmpty()) item { EmptyState(all.isEmpty(), query) { showAdd = true } }
+                }
+                // 2) Poziom kategorii → lista folderów (ikona kategorii + nazwa + licznik).
+                selectedCat == null -> {
+                    if (favCount > 0) item { CategoryFolder("⭐", "Ulubione", favCount) { selectedCat = "★" } }
+                    categories.forEach { (cat, list) ->
+                        item { CategoryFolder(catEmoji(cat), cat, list.size) { selectedCat = cat } }
                     }
+                    if (categories.isEmpty()) item { EmptyState(all.isEmpty(), "") { showAdd = true } }
+                }
+                // 3) Wewnątrz kategorii → produkty tej kategorii (obecny styl wierszy).
+                else -> {
+                    val list = if (selectedCat == "★") all.filter { it.favorite } else (categories[selectedCat] ?: emptyList())
+                    items(list, key = { it.id }) { p -> ProductRow(p, onTap = { detail = p }, onStar = { toggleStar(p) }) }
+                    if (list.isEmpty()) item { EmptyState(false, "") { showAdd = true } }
                 }
             }
+        }
+    }
+}
+
+/** Wiersz-folder kategorii: ikona + nazwa + licznik produktów + strzałka. */
+@Composable
+private fun CategoryFolder(emoji: String, name: String, count: Int, onTap: () -> Unit) {
+    val accent = when (categoryHue(name)) {
+        1 -> Palette.Orange; 2 -> Palette.Blue; 3 -> Palette.Muted; else -> Palette.Green
+    }
+    val dark = Palette.isDark
+    Row(
+        Modifier.fillMaxWidth().padding(bottom = 8.dp).card(14.dp).background(Palette.Card, RoundedCornerShape(14.dp)).clickable { onTap() }.padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier.size(48.dp).background(accent.copy(alpha = if (dark) 0.24f else 0.16f), RoundedCornerShape(14.dp)).border(1.dp, accent.copy(alpha = if (dark) 0.40f else 0.28f), RoundedCornerShape(14.dp)),
+            contentAlignment = Alignment.Center
+        ) { Text(emoji, fontSize = 24.sp) }
+        Column(Modifier.weight(1f).padding(start = 14.dp)) {
+            Text(name, color = Palette.TextDark, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            Text(if (count == 1) "1 produkt" else "$count produktów", color = Palette.Muted, fontSize = 13.sp)
+        }
+        Text("›", color = Palette.Muted, fontSize = 24.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 4.dp))
+    }
+}
+
+@Composable
+private fun EmptyState(loading: Boolean, query: String, onAdd: () -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(top = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("🔍", fontSize = 34.sp)
+        Text(if (loading) "Wczytuję produkty…" else if (query.isNotBlank()) "Nie znaleziono: $query" else "Brak produktów w tej kategorii", color = Palette.Muted, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp))
+        if (!loading) Box(Modifier.padding(top = 12.dp).background(Palette.GreenTint, RoundedCornerShape(12.dp)).clickable { onAdd() }.padding(horizontal = 16.dp, vertical = 10.dp)) {
+            Text("Dodaj ręcznie", color = Palette.GreenDark, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -125,7 +178,7 @@ private fun ProductRow(p: FoodProductEntity, onTap: () -> Unit, onStar: () -> Un
         Box(
             Modifier.size(44.dp).background(tileBg, RoundedCornerShape(14.dp)).border(1.dp, tileBorder, RoundedCornerShape(14.dp)),
             contentAlignment = Alignment.Center
-        ) { Text(catEmoji(p.category), fontSize = 22.sp) }
+        ) { Text(productEmoji(p.name, p.category), fontSize = 22.sp) }
         Column(Modifier.weight(1f).padding(start = 12.dp)) {
             Text(p.name, color = Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
             Text("${p.kcal} kcal · B ${fmt(p.proteinG)} · W ${fmt(p.carbsG)} · T ${fmt(p.fatG)} /100g", color = Palette.Muted, fontSize = 12.sp, maxLines = 1)
@@ -262,6 +315,48 @@ private fun MacroTile(value: String, label: String, tint: Color, modifier: Modif
 }
 
 private fun fmt(d: Double): String = (if (d % 1.0 == 0.0) "%.0f" else "%.1f").format(d)
+
+/** Ikona konkretnego produktu (po nazwie), z fallbackiem na ikonę kategorii. */
+private fun productEmoji(name: String, category: String): String {
+    val n = name.lowercase()
+    fun has(vararg keys: String) = keys.any { n.contains(it) }
+    return when {
+        // Owoce
+        has("jabłk", "jablk") -> "🍎"; has("banan") -> "🍌"; has("arbuz") -> "🍉"
+        has("gruszk") -> "🍐"; has("pomarańcz", "pomarancz") -> "🍊"; has("cytryn") -> "🍋"
+        has("truskaw") -> "🍓"; has("winogron") -> "🍇"; has("brzoskwin") -> "🍑"
+        has("ananas") -> "🍍"; has("borówk", "borowk", "jagod") -> "🫐"; has("wiśni", "wisni", "czereśni", "czeresni") -> "🍒"
+        has("kiwi") -> "🥝"; has("mango") -> "🥭"; has("melon", "kantalup") -> "🍈"
+        has("awokado") -> "🥑"; has("grejpfrut") -> "🍊"; has("malin") -> "🍓"; has("śliwk", "sliwk") -> "🍑"
+        has("kokos") -> "🥥"
+        // Warzywa
+        has("pomidor") -> "🍅"; has("marchew") -> "🥕"; has("ogórek", "ogorek") -> "🥒"
+        has("brokuł", "brokul") -> "🥦"; has("papryk") -> "🫑"; has("ziemniak") -> "🥔"; has("batat") -> "🍠"
+        has("kukurydz") -> "🌽"; has("cebul") -> "🧅"; has("czosnek") -> "🧄"; has("bakłażan", "baklazan") -> "🍆"
+        has("sałat", "salat", "szpinak", "kapust", "roszpon") -> "🥬"; has("grzyb", "pieczark", "boczniak") -> "🍄"
+        has("dyni", "dynia") -> "🎃"; has("groszek", "groch", "fasol", "soczewic", "ciecierzyc") -> "🫘"
+        // Mięso i ryby
+        has("kurczak", "kurcz", "indyk", "drób", "drob", "udko", "pierś", "piers") -> "🍗"
+        has("łosoś", "losos", "tuńczyk", "tunczyk", "dorsz", "makrel", "śledź", "sledz", "ryb", "pstrąg", "pstrag") -> "🐟"
+        has("krewetk", "owoce morza") -> "🦐"; has("wołow", "wolow", "stek", "rozbef") -> "🥩"
+        has("boczek", "schab", "szynk", "kabanos", "kiełbas", "kielbas", "wieprz", "parówk", "parowk") -> "🥓"
+        // Nabiał i jaja
+        has("jaj") -> "🥚"; has("mleko") -> "🥛"; has("jogurt", "kefir", "maślank", "maslank") -> "🥛"
+        has("ser", "twaróg", "twarog", "mozzarell", "feta") -> "🧀"; has("masło", "maslo") -> "🧈"
+        // Zboża i pieczywo
+        has("chleb", "bułk", "bulk", "pieczyw", "bagiet", "tost") -> "🍞"; has("ryż", "ryz") -> "🍚"
+        has("makaron", "spaghetti", "penne") -> "🍝"; has("płatki", "platki", "owsian", "musli", "granol") -> "🥣"
+        has("kasz", "quinoa", "komos") -> "🌾"; has("naleśnik", "nalesnik", "gofr") -> "🥞"
+        // Orzechy i tłuszcze
+        has("orzech", "migdał", "migdal", "nerkowc", "pistacj") -> "🥜"; has("oliw", "olej") -> "🫒"
+        has("słonecznik", "slonecznik", "dyni pestk", "siemię", "siemie", "chia", "sezam") -> "🌰"
+        // Inne / napoje / słodycze
+        has("czekolad") -> "🍫"; has("miód", "miod") -> "🍯"; has("cukier") -> "🍬"; has("dżem", "dzem", "konfitur") -> "🍓"
+        has("kaw") -> "☕"; has("herbat") -> "🍵"; has("wod") -> "💧"; has("sok") -> "🧃"
+        has("ketchup", "musztard", "majonez", "sos") -> "🧂"; has("ciast", "herbatnik", "wafel", "batonik") -> "🍪"
+        else -> catEmoji(category)
+    }
+}
 
 private fun catEmoji(cat: String): String = when {
     cat.contains("warzyw", true) -> "🥦"

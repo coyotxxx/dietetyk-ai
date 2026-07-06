@@ -139,17 +139,26 @@ private fun FoundContent(app: DietetykApp, state: ScanState.Found, onDismiss: ()
     }
 }
 
-/** Zapisuje zeskanowany produkt do bazy (jeśli jeszcze go nie ma po kodzie). */
+/** Zapisuje zeskanowany produkt do bazy. Dedup po kodzie: istnieje → aktualizuj (zachowaj ulubione). */
 private suspend fun saveToBase(app: DietetykApp, state: ScanState.Found) {
     val p = state.product
     runCatching {
-        app.database.foodProductDao().insert(
-            FoodProductEntity(
+        val dao = app.database.foodProductDao()
+        val existing = dao.byBarcode(state.barcode)
+        if (existing != null) {
+            dao.update(existing.copy(
+                name = p.name, nameNorm = FoodProductSeed.normalize(p.name),
+                kcal = p.kcal, proteinG = p.proteinG, carbsG = p.carbsG, fatG = p.fatG,
+                imageUrl = p.imageUrl ?: existing.imageUrl
+                // id, favorite, source, barcode, category — zachowane
+            ))
+        } else {
+            dao.insert(FoodProductEntity(
                 name = p.name, nameNorm = FoodProductSeed.normalize(p.name),
                 kcal = p.kcal, proteinG = p.proteinG, carbsG = p.carbsG, fatG = p.fatG,
                 category = "Inne", source = "scan", barcode = state.barcode, imageUrl = p.imageUrl
-            )
-        )
+            ))
+        }
     }
 }
 
