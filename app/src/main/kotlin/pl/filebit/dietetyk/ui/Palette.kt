@@ -7,6 +7,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
@@ -63,10 +64,12 @@ val LocalAppColors = staticCompositionLocalOf { LightColors }
 @Composable
 fun Modifier.card(radius: Dp = 18.dp): Modifier {
     val c = LocalAppColors.current
+    val shape = RoundedCornerShape(radius)
+    // clip NA KOŃCU (po shadow/border) — przycina tło i ripple do kształtu, cień przeżywa (rysowany przed clip).
     return if (c.isDark)
-        this.border(1.dp, c.Line, RoundedCornerShape(radius))
+        this.border(1.dp, c.Line, shape).clip(shape)
     else
-        this.shadow(5.dp, RoundedCornerShape(radius), spotColor = Color(0x33232620), ambientColor = Color(0x22232620))
+        this.shadow(5.dp, shape, spotColor = Color(0x33232620), ambientColor = Color(0x22232620)).clip(shape)
 }
 
 /** Bieżąca paleta (jasna/ciemna). Używaj w @Composable jak dotąd: `Palette.Green`. */

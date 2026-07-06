@@ -24,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -71,7 +72,7 @@ fun ProgressScreen(app: DietetykApp, onGoToChat: () -> Unit = {}) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("Postępy", color = Palette.TextDark, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
             Box(
-                Modifier.background(Palette.Green, RoundedCornerShape(12.dp)).clickable { showSheet = true }.padding(horizontal = 14.dp, vertical = 8.dp)
+                Modifier.clip(RoundedCornerShape(12.dp)).background(Palette.Green, RoundedCornerShape(12.dp)).clickable { showSheet = true }.padding(horizontal = 14.dp, vertical = 8.dp)
             ) { Text("+ Waga", color = androidx.compose.ui.graphics.Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
         }
 
@@ -129,7 +130,7 @@ fun ProgressScreen(app: DietetykApp, onGoToChat: () -> Unit = {}) {
             listOf(7 to "7 dni", 30 to "30 dni", 90 to "90 dni").forEach { (d, label) ->
                 val active = range == d
                 Box(
-                    Modifier.weight(1f).background(if (active) Palette.Green else Palette.Card, RoundedCornerShape(10.dp)).clickable { range = d }.padding(vertical = 8.dp),
+                    Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).background(if (active) Palette.Green else Palette.Card, RoundedCornerShape(10.dp)).clickable { range = d }.padding(vertical = 8.dp),
                     contentAlignment = Alignment.Center
                 ) { Text(label, color = if (active) androidx.compose.ui.graphics.Color.White else Palette.Muted, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
             }

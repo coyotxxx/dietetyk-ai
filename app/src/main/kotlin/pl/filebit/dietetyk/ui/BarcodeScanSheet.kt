@@ -23,6 +23,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -165,7 +166,7 @@ private suspend fun saveToBase(app: DietetykApp, state: ScanState.Found) {
 @Composable
 private fun ActionButton(text: String, bg: Color, textColor: Color = Color.White, topPad: androidx.compose.ui.unit.Dp = 0.dp, enabled: Boolean = true, onClick: () -> Unit) {
     Box(
-        Modifier.fillMaxWidth().padding(top = topPad).background(bg, RoundedCornerShape(14.dp)).clickable(enabled = enabled) { onClick() }.padding(vertical = 14.dp),
+        Modifier.fillMaxWidth().padding(top = topPad).clip(RoundedCornerShape(14.dp)).background(bg, RoundedCornerShape(14.dp)).clickable(enabled = enabled) { onClick() }.padding(vertical = 14.dp),
         contentAlignment = Alignment.Center
     ) { Text(text, color = textColor, fontSize = 15.sp, fontWeight = FontWeight.Bold) }
 }

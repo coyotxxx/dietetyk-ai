@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -49,7 +50,7 @@ private val RECIPE_KEYS = listOf("tradycyjnie", "airfryer", "thermomix")
 @Composable
 private fun PlanActionButton(text: String, bg: androidx.compose.ui.graphics.Color, textColor: androidx.compose.ui.graphics.Color, topPad: androidx.compose.ui.unit.Dp = 0.dp, onClick: () -> Unit) {
     Box(
-        Modifier.fillMaxWidth().padding(top = topPad).background(bg, RoundedCornerShape(14.dp)).clickable { onClick() }.padding(vertical = 14.dp),
+        Modifier.fillMaxWidth().padding(top = topPad).clip(RoundedCornerShape(14.dp)).background(bg, RoundedCornerShape(14.dp)).clickable { onClick() }.padding(vertical = 14.dp),
         contentAlignment = Alignment.Center
     ) { Text(text, color = textColor, fontSize = 15.sp, fontWeight = FontWeight.Bold) }
 }
@@ -249,7 +250,7 @@ fun PlanScreen(app: DietetykApp, onGoToChat: () -> Unit = {}) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         sources.forEach { src ->
                             Box(
-                                Modifier.background(Palette.Card, RoundedCornerShape(10.dp)).border(1.dp, Palette.Line, RoundedCornerShape(10.dp)).clickable {
+                                Modifier.clip(RoundedCornerShape(10.dp)).background(Palette.Card, RoundedCornerShape(10.dp)).border(1.dp, Palette.Line, RoundedCornerShape(10.dp)).clickable {
                                     val pj = planJson ?: return@clickable
                                     val newJson = PlanData.copyDay(pj, src, selectedDay, targetKcal) ?: return@clickable
                                     scope.launch {

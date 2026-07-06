@@ -25,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -122,7 +123,7 @@ fun ProfileScreen(app: DietetykApp, onBrowseProducts: () -> Unit = {}) {
         val start = startW ?: p.weightKg
         val frac = if (goalW != null && cur != null && start != null && kotlin.math.abs(goalW - start) > 0.1)
             (kotlin.math.abs(cur - start) / kotlin.math.abs(goalW - start)).coerceIn(0.0, 1.0).toFloat() else 0f
-        Column(Modifier.fillMaxWidth().padding(top = 14.dp).background(Palette.Green, RoundedCornerShape(18.dp)).clickable { showGoalDialog = true }.padding(18.dp)) {
+        Column(Modifier.fillMaxWidth().padding(top = 14.dp).clip(RoundedCornerShape(18.dp)).background(Palette.Green, RoundedCornerShape(18.dp)).clickable { showGoalDialog = true }.padding(18.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("MÓJ CEL · ${goalLabel(p.goal).uppercase()}", color = white.copy(alpha = 0.85f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 if (frac > 0f) Text("${(frac * 100).toInt()}%", color = white, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
@@ -181,9 +182,9 @@ fun ProfileScreen(app: DietetykApp, onBrowseProducts: () -> Unit = {}) {
         ) {
             Text("🍽️ Liczba posiłków", color = Palette.TextDark, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(32.dp).background(Palette.GreenTint, androidx.compose.foundation.shape.CircleShape).clickable { if (meals > 2) { meals--; saveProfilePatch { it.copy(mealsPerDay = meals) } } }, contentAlignment = Alignment.Center) { Text("−", color = Palette.GreenDark, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+                Box(Modifier.size(32.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Palette.GreenTint, androidx.compose.foundation.shape.CircleShape).clickable { if (meals > 2) { meals--; saveProfilePatch { it.copy(mealsPerDay = meals) } } }, contentAlignment = Alignment.Center) { Text("−", color = Palette.GreenDark, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
                 Text("$meals", color = Palette.TextDark, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(horizontal = 14.dp))
-                Box(Modifier.size(32.dp).background(Palette.GreenTint, androidx.compose.foundation.shape.CircleShape).clickable { if (meals < 8) { meals++; saveProfilePatch { it.copy(mealsPerDay = meals) } } }, contentAlignment = Alignment.Center) { Text("+", color = Palette.GreenDark, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+                Box(Modifier.size(32.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Palette.GreenTint, androidx.compose.foundation.shape.CircleShape).clickable { if (meals < 8) { meals++; saveProfilePatch { it.copy(mealsPerDay = meals) } } }, contentAlignment = Alignment.Center) { Text("+", color = Palette.GreenDark, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
             }
         }
 

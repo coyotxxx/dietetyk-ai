@@ -28,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -263,7 +264,7 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(top = 4.dp)
                 )
                 Box(
-                    Modifier.padding(top = 14.dp).background(Palette.Green, RoundedCornerShape(12.dp)).clickable { onGoToChat() }.padding(horizontal = 20.dp, vertical = 11.dp)
+                    Modifier.padding(top = 14.dp).clip(RoundedCornerShape(12.dp)).background(Palette.Green, RoundedCornerShape(12.dp)).clickable { onGoToChat() }.padding(horizontal = 20.dp, vertical = 11.dp)
                 ) { Text("Napisz do dietetyka", color = androidx.compose.ui.graphics.Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
             }
         }
@@ -321,7 +322,7 @@ private fun AddMealSheet(onDismiss: () -> Unit, onPhoto: () -> Unit, onBrowsePro
         Column(Modifier.fillMaxWidth().padding(20.dp).padding(bottom = 24.dp)) {
             Text("Co chcesz dodać?", color = Palette.TextDark, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
             Row(
-                Modifier.fillMaxWidth().background(Palette.GreenTint, RoundedCornerShape(14.dp)).clickable { onPhoto() }.padding(16.dp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Palette.GreenTint, RoundedCornerShape(14.dp)).clickable { onPhoto() }.padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("📷", fontSize = 26.sp)
@@ -331,7 +332,7 @@ private fun AddMealSheet(onDismiss: () -> Unit, onPhoto: () -> Unit, onBrowsePro
                 }
             }
             Row(
-                Modifier.fillMaxWidth().padding(top = 10.dp).background(Palette.GreenTint, RoundedCornerShape(14.dp)).clickable { onBrowseProducts() }.padding(16.dp),
+                Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(14.dp)).background(Palette.GreenTint, RoundedCornerShape(14.dp)).clickable { onBrowseProducts() }.padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("🥫", fontSize = 26.sp)
@@ -341,7 +342,7 @@ private fun AddMealSheet(onDismiss: () -> Unit, onPhoto: () -> Unit, onBrowsePro
                 }
             }
             Row(
-                Modifier.fillMaxWidth().padding(top = 10.dp).background(Palette.GreenTint, RoundedCornerShape(14.dp)).clickable { onScan() }.padding(16.dp),
+                Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(14.dp)).background(Palette.GreenTint, RoundedCornerShape(14.dp)).clickable { onScan() }.padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("🏷️", fontSize = 26.sp)
@@ -380,7 +381,7 @@ private fun WaterCard(water: Int, target: Int, onChange: (Int) -> Unit) {
 @Composable
 private fun WaterBtn(label: String, modifier: Modifier, onClick: () -> Unit) {
     Box(
-        modifier.background(Palette.Blue, RoundedCornerShape(12.dp)).clickable { onClick() }.padding(vertical = 10.dp),
+        modifier.clip(RoundedCornerShape(12.dp)).background(Palette.Blue, RoundedCornerShape(12.dp)).clickable { onClick() }.padding(vertical = 10.dp),
         contentAlignment = Alignment.Center
     ) { Text(label, color = androidx.compose.ui.graphics.Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
 }
@@ -414,7 +415,7 @@ private fun MealRow(index: Int, meal: DayMeal, status: String, onEat: () -> Unit
                     "REPLACED" -> "🔄 Coś innego" to Palette.Blue
                     else -> "⏳ Zjadłem?" to Palette.GreenDark
                 }
-                Box(Modifier.padding(top = 3.dp).background(Palette.GreenTint, RoundedCornerShape(8.dp)).clickable { menu = true }.padding(horizontal = 10.dp, vertical = 4.dp)) {
+                Box(Modifier.padding(top = 3.dp).clip(RoundedCornerShape(8.dp)).background(Palette.GreenTint, RoundedCornerShape(8.dp)).clickable { menu = true }.padding(horizontal = 10.dp, vertical = 4.dp)) {
                     Text(label, color = color, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
                 androidx.compose.material3.DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {

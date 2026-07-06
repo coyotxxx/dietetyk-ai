@@ -86,7 +86,7 @@ fun ProductsScreen(app: DietetykApp, onBack: () -> Unit) {
             horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
         ) {
             Text(headerTitle, color = Palette.TextDark, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.clickable { onHeaderBack() })
-            Box(Modifier.background(Palette.Green, RoundedCornerShape(12.dp)).clickable { showAdd = true }.padding(horizontal = 14.dp, vertical = 8.dp)) {
+            Box(Modifier.clip(RoundedCornerShape(12.dp)).background(Palette.Green, RoundedCornerShape(12.dp)).clickable { showAdd = true }.padding(horizontal = 14.dp, vertical = 8.dp)) {
                 Text("+ Dodaj", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
         }
@@ -151,7 +151,7 @@ private fun EmptyState(loading: Boolean, query: String, onAdd: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(top = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text("🔍", fontSize = 34.sp)
         Text(if (loading) "Wczytuję produkty…" else if (query.isNotBlank()) "Nie znaleziono: $query" else "Brak produktów w tej kategorii", color = Palette.Muted, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp))
-        if (!loading) Box(Modifier.padding(top = 12.dp).background(Palette.GreenTint, RoundedCornerShape(12.dp)).clickable { onAdd() }.padding(horizontal = 16.dp, vertical = 10.dp)) {
+        if (!loading) Box(Modifier.padding(top = 12.dp).clip(RoundedCornerShape(12.dp)).background(Palette.GreenTint, RoundedCornerShape(12.dp)).clickable { onAdd() }.padding(horizontal = 16.dp, vertical = 10.dp)) {
             Text("Dodaj ręcznie", color = Palette.GreenDark, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         }
     }
