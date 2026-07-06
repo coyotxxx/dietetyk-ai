@@ -123,7 +123,7 @@ fun ProfileScreen(app: DietetykApp, onBrowseProducts: () -> Unit = {}) {
         val start = startW ?: p.weightKg
         val frac = if (goalW != null && cur != null && start != null && kotlin.math.abs(goalW - start) > 0.1)
             (kotlin.math.abs(cur - start) / kotlin.math.abs(goalW - start)).coerceIn(0.0, 1.0).toFloat() else 0f
-        Column(Modifier.fillMaxWidth().padding(top = 14.dp).clip(RoundedCornerShape(18.dp)).background(Palette.Green, RoundedCornerShape(18.dp)).clickable { showGoalDialog = true }.padding(18.dp)) {
+        Column(Modifier.fillMaxWidth().padding(top = 14.dp).clip(RoundedCornerShape(18.dp)).background(Palette.Green, RoundedCornerShape(18.dp)).clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null) { showGoalDialog = true }.padding(18.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("MÓJ CEL · ${goalLabel(p.goal).uppercase()}", color = white.copy(alpha = 0.85f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 if (frac > 0f) Text("${(frac * 100).toInt()}%", color = white, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)

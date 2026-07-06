@@ -91,7 +91,7 @@ private fun MealCard(app: DietetykApp, index: Int, meal: PlanMeal) {
     val scope = rememberCoroutineScope()
 
     Column(Modifier.fillMaxWidth().padding(bottom = 10.dp).card(16.dp).background(Palette.Card, RoundedCornerShape(16.dp))
-        .clickable {
+        .clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null) {
             expanded = !expanded
             if (expanded && recipe == null && !loading) {
                 loading = true; error = null
