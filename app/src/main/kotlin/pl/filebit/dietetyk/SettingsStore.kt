@@ -59,6 +59,12 @@ class SettingsStore(context: Context) {
         get() = prefs.getInt("recipe_variant", 0)
         set(v) { prefs.edit().putInt("recipe_variant", v).apply() }
 
+    /** Sprzęt kuchenny użytkownika (CSV: "airfryer,thermomix") — filtruje warianty przepisów.
+     *  Kuchenka/piekarnik („tradycyjnie") zawsze dostępne. Puste = tylko tradycyjnie. */
+    var kitchenEquipment: String
+        get() = prefs.getString("kitchen_equipment", "").orEmpty()
+        set(v) { prefs.edit().putString("kitchen_equipment", v).apply() }
+
     /** Ton rozmowy dietetyka: "gentle" | "balanced" | "tough". */
     var aiTone: String
         get() = prefs.getString("ai_tone", "balanced").orEmpty()

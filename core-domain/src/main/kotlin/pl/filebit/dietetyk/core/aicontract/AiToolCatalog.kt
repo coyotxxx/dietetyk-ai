@@ -46,7 +46,8 @@ object AiToolCatalog {
                 AiToolParam("paceKgPerWeek", "double", false, "docelowe tempo zmiany masy w kg/tydzień, wartość dodatnia (np. 0.5)"),
                 AiToolParam("goalWeightKg", "double", false, "docelowa waga w kg (do paska postępu w profilu)"),
                 AiToolParam("mealsPerDay", "int", false, "preferowana liczba posiłków dziennie (2-8)"),
-                AiToolParam("preferences", "string", false, "alergie/nietolerancje/preferencje krótko (np. 'laktoza; bez wieprzowiny')")
+                AiToolParam("preferences", "string", false, "alergie/nietolerancje/preferencje krótko (np. 'laktoza; bez wieprzowiny')"),
+                AiToolParam("equipment", "string", false, "sprzęt kuchenny użytkownika jako CSV z {airfryer,thermomix} — np. 'airfryer,thermomix' albo 'airfryer'. Puste = tylko kuchenka/piekarnik. Filtruje warianty przepisów.")
             ),
             mutating = true
         ),

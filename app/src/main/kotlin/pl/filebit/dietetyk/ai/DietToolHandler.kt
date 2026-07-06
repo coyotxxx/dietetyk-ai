@@ -99,6 +99,7 @@ class DietToolHandler(
         val p = input["profile"]?.jsonObject ?: input   // wspiera płaskie pola i zagnieżdżone
         val existing = app.profileRepo.get()   // zachowaj wcześniej ustawione pola, gdy AI ich nie poda
         p.string("name")?.let { app.settings.userName = it }
+        p.string("equipment")?.let { app.settings.kitchenEquipment = it.lowercase() }   // sprzęt → filtr wariantów przepisów
         val profile = NutritionProfile(
             gender = enumOr(p.string("gender"), Gender.MALE),
             ageYears = p.int("ageYears") ?: p.int("wiek") ?: 30,

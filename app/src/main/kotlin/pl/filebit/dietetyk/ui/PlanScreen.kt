@@ -130,7 +130,7 @@ private fun MealCard(app: DietetykApp, index: Int, meal: PlanMeal) {
         if (!expanded && meal.ingredients.isNotBlank()) {
             Text(meal.ingredients, color = Palette.Muted, fontSize = 13.sp, maxLines = 2, modifier = Modifier.padding(top = 6.dp))
         }
-        Text(if (expanded) "▲ Zwiń" else "▼ Składniki i przepis (3 warianty)", color = Palette.Green, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
+        Text(if (expanded) "▲ Zwiń" else "▼ Składniki i przepis", color = Palette.Green, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
 
         if (expanded) {
             // === SKŁADNIKI (wspólne dla wariantów) ===
@@ -151,16 +151,22 @@ private fun MealCard(app: DietetykApp, index: Int, meal: PlanMeal) {
                 loading -> Text("Generuję przepis…", color = Palette.Muted, fontSize = 13.sp)
                 error != null -> Text(error!!, color = Palette.Muted, fontSize = 13.sp)
                 recipe != null -> {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        RECIPE_VARIANTS.forEachIndexed { vi, label ->
-                            Box(
-                                Modifier.weight(1f).background(if (vi == variant) Palette.Green else Palette.GreenTint, RoundedCornerShape(10.dp))
-                                    .clickable { variant = vi; app.settings.recipeVariant = vi }.padding(vertical = 8.dp),
-                                contentAlignment = Alignment.Center
-                            ) { Text(label, color = if (vi == variant) androidx.compose.ui.graphics.Color.White else Palette.GreenDark, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                    // Warianty ograniczone do sprzętu użytkownika (Tradycyjnie zawsze; Air Fryer/Thermomix gdy posiada).
+                    val eq = app.settings.kitchenEquipment
+                    val availableVariants = buildList { add(0); if (eq.contains("airfryer")) add(1); if (eq.contains("thermomix")) add(2) }
+                    val effVariant = if (variant in availableVariants) variant else availableVariants.first()
+                    if (availableVariants.size > 1) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            availableVariants.forEach { vi ->
+                                Box(
+                                    Modifier.weight(1f).background(if (vi == effVariant) Palette.Green else Palette.GreenTint, RoundedCornerShape(10.dp))
+                                        .clickable { variant = vi; app.settings.recipeVariant = vi }.padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) { Text(RECIPE_VARIANTS[vi], color = if (vi == effVariant) androidx.compose.ui.graphics.Color.White else Palette.GreenDark, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                            }
                         }
                     }
-                    recipe!!.getOrElse(variant) { emptyList() }.forEachIndexed { i, step ->
+                    recipe!!.getOrElse(effVariant) { emptyList() }.forEachIndexed { i, step ->
                         Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.Top) {
                             Box(Modifier.size(24.dp).background(Palette.Green, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
                                 Text("${i + 1}", color = androidx.compose.ui.graphics.Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
