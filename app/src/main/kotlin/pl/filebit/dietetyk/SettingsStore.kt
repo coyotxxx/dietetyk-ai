@@ -59,6 +59,13 @@ class SettingsStore(context: Context) {
         get() = prefs.getInt("recipe_variant", 0)
         set(v) { prefs.edit().putInt("recipe_variant", v).apply() }
 
+    /** Data ostatniego pokazania proaktywnej podpowiedzi danego typu (cooldown, per InsightType.name). */
+    fun insightShownDate(type: String): java.time.LocalDate? =
+        prefs.getString("insight_shown_$type", null)?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
+    fun markInsightShown(type: String, date: java.time.LocalDate) {
+        prefs.edit().putString("insight_shown_$type", date.toString()).apply()
+    }
+
     /** Czy pokazano już jednorazową kartę „jak korzystać" (po wywiadzie, na Dziś). */
     var howToShown: Boolean
         get() = prefs.getBoolean("how_to_shown", false)

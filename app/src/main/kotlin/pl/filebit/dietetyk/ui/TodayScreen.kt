@@ -85,6 +85,7 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
     var consumedF by remember { mutableIntStateOf(0) }
     var hasProfile by remember { mutableStateOf(true) }
     var meals by remember { mutableStateOf<List<DayMeal>>(emptyList()) }
+    var insight by remember { mutableStateOf<pl.filebit.dietetyk.core.aicontract.Insight?>(null) }
     val userName = remember { app.settings.userName }
     val dayKey = remember { LocalDate.now().let { "%04d%02d%02d".format(it.year, it.monthValue, it.dayOfMonth) } }
     var water by remember { mutableIntStateOf(app.settings.waterMl(dayKey)) }
@@ -119,6 +120,13 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
                 }
             }.getOrDefault(emptyList())
         }
+        // Proaktywny insight — deterministyczny silnik wypatruje MAX 1 wzorca (albo cisza).
+        insight = runCatching {
+            val ctx = app.contextBuilder.build(System.currentTimeMillis()) ?: return@runCatching null
+            val cooldowns = pl.filebit.dietetyk.core.aicontract.InsightType.entries
+                .mapNotNull { t -> app.settings.insightShownDate(t.name)?.let { t to it } }.toMap()
+            pl.filebit.dietetyk.core.aicontract.InsightEngine.detect(ctx, cooldowns, LocalDate.now())
+        }.getOrNull()
     }
 
     val unread by app.database.notificationDao().unreadCount().collectAsState(initial = 0)
@@ -260,10 +268,28 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
                         else -> "Dziś ${-remaining} kcal ponad cel — bez dramatu, jutro wyrównamy."
                     }
                     Text(statusMsg, color = Palette.TextDark, fontSize = 15.sp, modifier = Modifier.padding(top = 6.dp))
-                    Box(
-                        Modifier.padding(top = 12.dp).background(Palette.Green, RoundedCornerShape(12.dp))
-                            .clickable { onGoToChat() }.padding(horizontal = 18.dp, vertical = 9.dp)
-                    ) { Text("Odpowiedz", color = androidx.compose.ui.graphics.Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
+
+                    val iv = insight
+                    if (iv != null) {
+                        // INSIGHT — jeden celny wzorzec z danych, pod statusem. Button→czat (głębia), X→wycisz.
+                        Box(Modifier.fillMaxWidth().padding(top = 12.dp).height(1.dp).background(Palette.Green.copy(alpha = 0.25f)))
+                        Text(iv.text, color = Palette.TextDark, fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 12.dp))
+                        Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                Modifier.clip(RoundedCornerShape(12.dp)).background(Palette.Green, RoundedCornerShape(12.dp))
+                                    .clickable { app.pendingChatMessage = iv.chatPrompt; onGoToChat() }.padding(horizontal = 18.dp, vertical = 9.dp)
+                            ) { Text(iv.buttonLabel, color = androidx.compose.ui.graphics.Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
+                            Text("✕", color = Palette.Muted, fontSize = 18.sp, modifier = Modifier
+                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                .clickable { app.settings.markInsightShown(iv.type.name, LocalDate.now()); insight = null }
+                                .padding(8.dp))
+                        }
+                    } else {
+                        Box(
+                            Modifier.padding(top = 12.dp).clip(RoundedCornerShape(12.dp)).background(Palette.Green, RoundedCornerShape(12.dp))
+                                .clickable { onGoToChat() }.padding(horizontal = 18.dp, vertical = 9.dp)
+                        ) { Text("Odpowiedz", color = androidx.compose.ui.graphics.Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
+                    }
                 }
             }
         }
