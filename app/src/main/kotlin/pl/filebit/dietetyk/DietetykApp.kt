@@ -41,9 +41,12 @@ class DietetykApp : Application() {
         DietitianContextBuilder(profileRepo, weightRepo, database.energyLogDao(), database.aiMemoryDao(), database.foodProductDao())
     }
 
-    /** Przepis (3 warianty) dla dania — z cache lub generowany na żądanie i cache'owany. */
+    /** Przepis (3 warianty) dla dania — z cache lub generowany na żądanie i cache'owany.
+     *  KLUCZ = nazwa + składniki: różne dania o tej samej nazwie (np. „Śniadanie" = jajecznica vs
+     *  płatki z twarogiem) NIE mogą kolidować w cache (dawniej klucz = sama nazwa → zły przepis). */
     suspend fun recipeFor(mealName: String, ingredients: String): String {
-        val key = FoodProductSeed.normalize(mealName)
+        val ingHash = Integer.toHexString(FoodProductSeed.normalize(ingredients).hashCode())
+        val key = "${FoodProductSeed.normalize(mealName)}|$ingHash"
         database.recipeDao().get(key)?.let { return it.json }
         val json = RecipeGenerator(ClaudeHttpApi(settings.apiKey)).generate(mealName, ingredients)
         database.recipeDao().upsert(RecipeEntity(mealKey = key, json = json, updatedAt = System.currentTimeMillis()))
