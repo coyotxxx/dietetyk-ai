@@ -14,7 +14,7 @@ import androidx.room.TypeConverters
  */
 @Database(
     entities = [ProfileEntity::class, WeightEntity::class, EnergyLogEntity::class, AiMemoryEntity::class, PlanEntity::class, FoodProductEntity::class, RecipeEntity::class, NotificationEntity::class, ChatMessageEntity::class, VisitEntity::class],
-    version = 15,
+    version = 16,
     exportSchema = true
 )
 @TypeConverters(Converters::class)

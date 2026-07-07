@@ -129,6 +129,18 @@ object AiToolCatalog {
         AiToolSpec(
             "defer_goal", "Zawieś cel bieżącego etapu, bo user potrzebuje wsparcia/rozmowy (kod tego nie karze).",
             listOf(AiToolParam("reason", "string", true, "dlaczego odkładamy agendę")), mutating = false
+        ),
+        AiToolSpec(
+            "set_food_preference",
+            "Zapisz SMAK uzytkownika do konkretnego produktu, GDY DOWIESZ SIE W ROZMOWIE ze cos lubi albo nie je. " +
+                "PREFER = lubi/uwielbia (preferuj w planach). AVOID = nie je / nie znosi (NIGDY nie planuj — twardy guardrail). " +
+                "Przyklady: user mowi ze nie znosi twarogu -> set_food_preference(twarog, AVOID); uwielbia lososia -> (losos, PREFER). " +
+                "To JEDYNE wlasciwe miejsce na smaki — NIE zapisuj ich do notatek. Wolaj proaktywnie gdy tylko wychwycisz preferencje.",
+            listOf(
+                AiToolParam("product", "string", true, "nazwa produktu (np. twarog, losos)"),
+                AiToolParam("preference", "enum", true, "PREFER (lubi) | AVOID (nie je) | NEUTRAL (cofnij)")
+            ),
+            mutating = true
         )
     )
 

@@ -151,4 +151,31 @@ val MIGRATION_14_15 = object : Migration(14, 15) {
     }
 }
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
+/**
+ * v15→v16: `favorite` (Boolean) → `preference` (Int: 0=NEUTRAL, 1=PREFER, 2=AVOID) — jedna oś smaku.
+ * Table-recreate (SQLite nie DROP COLUMN pewnie), NIE-destrukcyjne: kopiuje wszystkie dane,
+ * favorite=1 → preference=1 (PREFER). Zero utraty danych usera.
+ */
+val MIGRATION_15_16 = object : Migration(15, 16) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `food_products_new` (" +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`name` TEXT NOT NULL, `nameNorm` TEXT NOT NULL, `kcal` INTEGER NOT NULL, " +
+                "`proteinG` REAL NOT NULL, `carbsG` REAL NOT NULL, `fatG` REAL NOT NULL, " +
+                "`category` TEXT NOT NULL, `source` TEXT NOT NULL, " +
+                "`preference` INTEGER NOT NULL DEFAULT 0, `barcode` TEXT, `imageUrl` TEXT)"
+        )
+        db.execSQL(
+            "INSERT INTO `food_products_new` " +
+                "(`id`, `name`, `nameNorm`, `kcal`, `proteinG`, `carbsG`, `fatG`, `category`, `source`, `preference`, `barcode`, `imageUrl`) " +
+                "SELECT `id`, `name`, `nameNorm`, `kcal`, `proteinG`, `carbsG`, `fatG`, `category`, `source`, " +
+                "CASE WHEN `favorite` = 1 THEN 1 ELSE 0 END, `barcode`, `imageUrl` FROM `food_products`"
+        )
+        db.execSQL("DROP TABLE `food_products`")
+        db.execSQL("ALTER TABLE `food_products_new` RENAME TO `food_products`")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_food_products_nameNorm` ON `food_products` (`nameNorm`)")
+    }
+}
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)

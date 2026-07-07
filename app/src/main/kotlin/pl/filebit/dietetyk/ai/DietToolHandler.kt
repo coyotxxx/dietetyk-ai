@@ -57,6 +57,7 @@ class DietToolHandler(
             "save_diet_plan" -> saveDietPlan(input, now)
             "search_products" -> searchProducts(input)
             "add_missing_product" -> addMissingProduct(input)
+            "set_food_preference" -> setFoodPreference(input)
             else -> ToolResult("Narzędzie '$name' będzie dostępne wkrótce.")
         }
     }
@@ -123,6 +124,34 @@ class DietToolHandler(
         return ToolResult("Waga: ${ctx.latestWeightKg ?: "?"} kg, $trend. Trzymanie planu 14d: kcal ${ctx.adherence14d.avgKcalPct}%. Dni pełnych logów: ${ctx.completeLogDays14d}.")
     }
 
+    /**
+     * Zapis SMAKU (PREFER/AVOID/NEUTRAL) na produkt — strukturalne, jedno źródło prawdy. Wołane przez AI,
+     * gdy wychwyci preferencję w rozmowie („nie znoszę twarogu"). Match: exact norm → pierwszy trafny w bazie.
+     */
+    private suspend fun setFoodPreference(input: JsonObject): ToolResult {
+        val productName = input.string("product") ?: return ToolResult("Podaj produkt (product).", isError = true)
+        val pref = when (input.string("preference")?.uppercase()) {
+            "AVOID" -> pl.filebit.dietetyk.data.db.Pref.AVOID
+            "NEUTRAL" -> pl.filebit.dietetyk.data.db.Pref.NEUTRAL
+            else -> pl.filebit.dietetyk.data.db.Pref.PREFER
+        }
+        val norm = FoodProductSeed.normalize(productName)
+        val dao = app.database.foodProductDao()
+        val hits = dao.search(norm)
+        val target = hits.firstOrNull { it.nameNorm == norm } ?: hits.firstOrNull()
+        val label = when (pref) {
+            pl.filebit.dietetyk.data.db.Pref.PREFER -> "lubiany (❤️ preferuję w planach)"
+            pl.filebit.dietetyk.data.db.Pref.AVOID -> "nie jadany (🚫 nie zaplanuję)"
+            else -> "obojętny"
+        }
+        return if (target != null) {
+            dao.setPreference(target.id, pref)
+            ToolResult("Zapisane: ${target.name} = $label.")
+        } else {
+            ToolResult("Zanotowałem: $productName = $label. Nie mam go jeszcze w bazie — jeśli chcesz go w planach, dodaj przez add_missing_product.")
+        }
+    }
+
     private suspend fun searchProducts(input: JsonObject): ToolResult {
         val query = input.string("query")?.takeIf { it.isNotBlank() }
             ?: return ToolResult("Podaj nazwę produktu (query).", isError = true)
@@ -186,13 +215,16 @@ class DietToolHandler(
             )
         }
         val catByName = entities.associate { it.name.lowercase() to it.category }
+        // Nielubiane (🚫) → twardy guardrail walidatora: plan NIGDY nie użyje tych produktów.
+        val avoidedNorms = entities.filter { it.preference == pl.filebit.dietetyk.data.db.Pref.AVOID }
+            .map { FoodProductSeed.normalize(it.name) }.toSet()
 
         val ctx = ValidationContext(
             expectedMealsCount = plan.meals.size,
             targetKcal = goal.kcal, targetProteinG = goal.proteinG,
             targetCarbsG = goal.carbsG, targetFatG = goal.fatG,
             perMealProteinMinG = 0, maxCookingMinutesPerMeal = 240,
-            productsByName = byName
+            productsByName = byName, avoidedNorms = avoidedNorms
         )
         val result = PlanValidator.validate(plan, ctx)
         // W trybie TYGODNIOWYM nie retry'ujemy (7 dni × 2 próby > limit tur → korupcja) — fallback-zapis
@@ -202,6 +234,18 @@ class DietToolHandler(
             return ToolResult(PlanValidator.buildRetryFeedback(result), isError = true)
         }
         planRetries = 0
+        // GRACEFUL FALLBACK smaku: NIGDY nie zapisuj planu z produktem AVOID (obietnica: nie planuję czego nie jesz).
+        // Po wyczerpaniu prób → rozmowa, nie zapis kompromisu. Rozróżnij przyczynę (smak) od matematyki celu.
+        val avoidHits = result.errors.filter { it.code == "avoided_product" }
+            .mapNotNull { Regex("używa '([^']+)'").find(it.message)?.groupValues?.get(1) }.distinct()
+        if (avoidHits.isNotEmpty()) {
+            return ToolResult(
+                "NIE ZAPISANO planu — zawiera produkty, których użytkownik nie je (🚫): ${avoidHits.joinToString(", ")}. " +
+                    "Za dużo wykluczeń, żeby ułożyć sensowny plan pod cel. Powiedz użytkownikowi KONKRETNIE, czego nie możesz obejść " +
+                    "(te produkty), i zapytaj, czy dopuści któryś z nich — dopiero po jego zgodzie ułóż plan ponownie. Nie układaj w kółko.",
+                isError = true
+            )
+        }
 
         // Per-posiłek przeliczone z bazy (do wyświetlenia na Dziś/Plan)
         val mealsJson = buildJsonArray {

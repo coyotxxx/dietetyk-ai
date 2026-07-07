@@ -11,7 +11,8 @@ import kotlinx.coroutines.flow.Flow
 /**
  * Produkt spożywczy — wartości na 100 g produktu SUROWEGO (przed obróbką).
  * `source`: "seed" (baza wbudowana) | "off" (OpenFoodFacts) | "user" | "scan".
- * `favorite`: ulubiony — sygnał dla AI (preferuj w planach) + skrót do logowania.
+ * `preference`: smak użytkownika — 0=NEUTRAL, 1=PREFER (❤️ lubię, preferuj w planach + skrót logowania),
+ *   2=AVOID (🚫 nie jem — walidator NIGDY nie zaplanuje). Jedno źródło prawdy o smaku (dawniej `favorite`).
  */
 @Entity(tableName = "food_products", indices = [Index(value = ["nameNorm"])])
 data class FoodProductEntity(
@@ -24,10 +25,13 @@ data class FoodProductEntity(
     val fatG: Double,
     val category: String,
     val source: String = "seed",
-    val favorite: Boolean = false,
+    val preference: Int = Pref.NEUTRAL,
     val barcode: String? = null,
     val imageUrl: String? = null
 )
+
+/** Poziomy smaku (jedna oś: nie jem ← obojętne → lubię). Prostota: 3 stany, nie 5. */
+object Pref { const val NEUTRAL = 0; const val PREFER = 1; const val AVOID = 2 }
 
 @Dao
 interface FoodProductDao {
@@ -40,16 +44,24 @@ interface FoodProductDao {
     @Query("SELECT * FROM food_products")
     suspend fun all(): List<FoodProductEntity>
 
-    /** Reaktywna lista wszystkich produktów (ulubione na górze, potem kategoria/nazwa). */
-    @Query("SELECT * FROM food_products ORDER BY favorite DESC, category, name")
+    /** Reaktywna lista wszystkich produktów (lubię ❤️ na górze, nie jem 🚫 na dole, potem kategoria/nazwa). */
+    @Query("SELECT * FROM food_products ORDER BY CASE preference WHEN 1 THEN 0 WHEN 0 THEN 1 ELSE 2 END, category, name")
     fun observeAll(): Flow<List<FoodProductEntity>>
 
-    /** Ulubione — do wstrzyknięcia w DietitianContext (AI preferuje je w planach). */
-    @Query("SELECT * FROM food_products WHERE favorite = 1 ORDER BY name")
-    suspend fun favorites(): List<FoodProductEntity>
+    /** Lubiane (❤️) — do wstrzyknięcia w DietitianContext (AI preferuje je w planach). */
+    @Query("SELECT * FROM food_products WHERE preference = 1 ORDER BY name")
+    suspend fun preferred(): List<FoodProductEntity>
 
-    @Query("UPDATE food_products SET favorite = :fav WHERE id = :id")
-    suspend fun setFavorite(id: Long, fav: Boolean)
+    /** Nielubiane (🚫) — twardy guardrail: walidator NIGDY nie zaplanuje tych produktów. */
+    @Query("SELECT * FROM food_products WHERE preference = 2 ORDER BY name")
+    suspend fun avoided(): List<FoodProductEntity>
+
+    @Query("UPDATE food_products SET preference = :pref WHERE id = :id")
+    suspend fun setPreference(id: Long, pref: Int)
+
+    /** Ustaw smak po nazwie (znormalizowanej) — dla toola AI `set_food_preference`. */
+    @Query("UPDATE food_products SET preference = :pref WHERE nameNorm = :nameNorm")
+    suspend fun setPreferenceByNorm(nameNorm: String, pref: Int): Int
 
     @Insert
     suspend fun insert(item: FoodProductEntity): Long

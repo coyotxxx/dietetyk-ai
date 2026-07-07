@@ -38,6 +38,9 @@ data class ValidationContext(
     val productsByName: Map<String, FoodProductModel>,  // klucz = name.lowercase()
     /** Szew pod diety kliniczne: pusta lista na start (ARCHITECTURE.md §3). */
     val constraints: List<DietConstraint> = emptyList(),
+    /** Znormalizowane nazwy produktów NIELUBIANYCH (🚫 AVOID) — walidator hard-odrzuca plan, który ich używa.
+     *  Dopasowanie PRECYZYJNE (całe słowo), bias na przepust: fałszywy reject gorszy niż przepust. */
+    val avoidedNorms: Set<String> = emptySet(),
     val perSlotKcalTargets: List<Int> = emptyList(),
     val perSlotKcalTolerance: Double = 0.25,
     val enforceDailyKcal: Boolean = true,
@@ -88,6 +91,14 @@ object PlanValidator {
             var mealFatReal = 0.0
 
             meal.ingredients.forEach { ing ->
+                // AVOID (🚫): produkt nielubiany → HARD reject. Match PRECYZYJNY (całe słowo), NIE substring:
+                // „deser" nie łapie „ser", „porzeczka" nie łapie „por". Bias na przepust — odrzucaj tylko pewne.
+                if (ctx.avoidedNorms.isNotEmpty()) {
+                    val ingNorm = " ${normalizeName(ing.productName)} "
+                    val hit = ctx.avoidedNorms.firstOrNull { av -> av.isNotBlank() && ingNorm.contains(" $av ") }
+                    if (hit != null) errors += ValidationIssue(ValidationSeverity.ERROR, mIdx, "avoided_product",
+                        "Posiłek '${meal.name}' używa '${ing.productName}', którego użytkownik NIE JE (🚫). Zastąp innym produktem.")
+                }
                 if (ing.grams < 5 || ing.grams > 1000) {
                     warnings += ValidationIssue(ValidationSeverity.WARNING, mIdx, "grams_out_of_range",
                         "${ing.productName}: ${ing.grams}g poza rozsądnym zakresem [5-1000g].")
@@ -238,6 +249,13 @@ object PlanValidator {
             if (dist < bestDist && dist <= maxDist) { bestDist = dist; bestMatch = product }
         }
         return bestMatch
+    }
+
+    /** Normalizacja nazwy (lowercase + fold polskich znaków) — spójna z FoodProductSeed.normalize. */
+    private fun normalizeName(s: String): String = buildString {
+        for (c in s.lowercase().trim()) append(
+            when (c) { 'ą' -> 'a'; 'ć' -> 'c'; 'ę' -> 'e'; 'ł' -> 'l'; 'ń' -> 'n'; 'ó' -> 'o'; 'ś' -> 's'; 'ź' -> 'z'; 'ż' -> 'z'; else -> c }
+        )
     }
 
     private fun levenshtein(a: String, b: String): Int {

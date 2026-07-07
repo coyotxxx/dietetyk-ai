@@ -85,7 +85,10 @@ object DietitianPrompt {
             ctx.memoryNotes.forEach { appendLine("  - $it") }
         }
         if (ctx.favoriteProducts.isNotEmpty()) {
-            appendLine("Produkty ULUBIONE użytkownika (preferuj je układając plan, jeśli pasują do celu i makra — nie trzymaj się kurczowo, cel ważniejszy): ${ctx.favoriteProducts.joinToString(", ")}.")
+            appendLine("Produkty LUBIANE (❤️) użytkownika — PREFERUJ je układając plan, jeśli pasują do celu i makra (nie kurczowo, cel ważniejszy): ${ctx.favoriteProducts.joinToString(", ")}.")
+        }
+        if (ctx.avoidedProducts.isNotEmpty()) {
+            appendLine("Produkty NIELUBIANE (🚫) — użytkownik ICH NIE JE. NIGDY nie planuj ich ani nie proponuj (twardy zakaz, walidator i tak odrzuci): ${ctx.avoidedProducts.joinToString(", ")}.")
         }
 
         // Cel / kontrakt
@@ -124,7 +127,10 @@ object DietitianPrompt {
             append("nie przeskakuj kroków, nie pytaj o kilka rzeczy naraz:\n")
             append("  1) Imię (powitaj ciepło). 2) CEL (schudnąć/masa/zdrowie/lepsze nawyki). ")
             append("3) Podstawy: płeć, wiek, wzrost. 4) Waga teraz i docelowa. 5) Aktywność/tryb życia i treningi/tydzień. ")
-            append("6) Alergie/nietolerancje i preferencje. 7) Liczba posiłków dziennie. ")
+            append("6) Alergie/nietolerancje ORAZ SMAKI — zapytaj wprost: co LUBI, a czego NIE JE / nie znosi. ")
+            append("Dla KAŻDEGO wymienionego produktu wywołaj set_food_preference (PREFER lub AVOID). ")
+            append("To najważniejsze dla trzymania diety — plan ma być ze zdrowych rzeczy, KTÓRE LUBI, i NIGDY z tych, których nie je. ")
+            append("7) Liczba posiłków dziennie. ")
             append("8) SPRZĘT KUCHENNY (opcjonalny): zapytaj co ma — Air Fryer / Thermomix / tylko kuchenka; ")
             append("zapisz przez save_profile pole `equipment` (CSV: airfryer,thermomix). 9) BADANIA KRWI (opcjonalne): ")
             append("zaproponuj wysłanie zdjęcia wyników badań (odczytasz je) albo pominięcie — nie naciskaj.\n")

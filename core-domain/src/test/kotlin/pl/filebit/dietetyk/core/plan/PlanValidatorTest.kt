@@ -21,11 +21,13 @@ class PlanValidatorTest {
     private fun ctx(
         expectedMeals: Int = 1, targetKcal: Int = 540, targetProtein: Int = 60,
         constraints: List<DietConstraint> = emptyList(),
-        enforceKcal: Boolean = true, enforceMacros: Boolean = true
+        enforceKcal: Boolean = true, enforceMacros: Boolean = true,
+        avoided: Set<String> = emptySet()
     ) = ValidationContext(
         expectedMealsCount = expectedMeals, targetKcal = targetKcal, targetProteinG = targetProtein,
         perMealProteinMinG = 25, maxCookingMinutesPerMeal = 45, productsByName = base,
-        constraints = constraints, enforceDailyKcal = enforceKcal, enforceDailyMacros = enforceMacros
+        constraints = constraints, enforceDailyKcal = enforceKcal, enforceDailyMacros = enforceMacros,
+        avoidedNorms = avoided
     )
 
     // Kurczak 200g (330 kcal, 62 B) + Ryż 60g (210 kcal, 4.2 B) = 540 kcal, 66 B
@@ -61,6 +63,41 @@ class PlanValidatorTest {
             AiRecipeIngredient("Pierś z kurczaka", 150), AiRecipeIngredient("Marsjański proszek", 50)))
         val r = PlanValidator.validate(AiDayPlan(listOf(meal)), ctx(enforceKcal = false, enforceMacros = false))
         assertTrue(r.warnings.any { it.code == "unknown_product" })
+    }
+
+    // === SMAK: AVOID (🚫) hard-reject + regresja false-positives (precyzja, bias na przepust) ===
+
+    @Test
+    fun `produkt nielubiany (AVOID) hard-odrzuca plan`() {
+        val meal = AiMealRecipe("Jogurt", 120, 2, listOf(AiRecipeIngredient("Jogurt naturalny", 200)))
+        val r = PlanValidator.validate(AiDayPlan(listOf(meal)),
+            ctx(enforceKcal = false, enforceMacros = false, avoided = setOf("jogurt")))
+        assertFalse(r.isValid)
+        assertTrue(r.errors.any { it.code == "avoided_product" })
+    }
+
+    @Test
+    fun `AVOID lapie cale slowo w wieloczlonowej nazwie`() {
+        val meal = AiMealRecipe("Ser", 300, 5, listOf(AiRecipeIngredient("Ser żółty", 80)))
+        val r = PlanValidator.validate(AiDayPlan(listOf(meal)),
+            ctx(enforceKcal = false, enforceMacros = false, avoided = setOf("ser")))
+        assertTrue(r.errors.any { it.code == "avoided_product" })
+    }
+
+    @Test
+    fun `regresja - AVOID por NIE odrzuca porzeczki (substring nie lapie)`() {
+        val meal = AiMealRecipe("Deser", 150, 2, listOf(AiRecipeIngredient("Porzeczka", 100)))
+        val r = PlanValidator.validate(AiDayPlan(listOf(meal)),
+            ctx(enforceKcal = false, enforceMacros = false, avoided = setOf("por")))
+        assertFalse("porzeczka NIE może być fałszywie odrzucona przez AVOID=por", r.errors.any { it.code == "avoided_product" })
+    }
+
+    @Test
+    fun `regresja - AVOID ser NIE odrzuca deseru`() {
+        val meal = AiMealRecipe("Coś", 150, 2, listOf(AiRecipeIngredient("Deser mleczny", 100)))
+        val r = PlanValidator.validate(AiDayPlan(listOf(meal)),
+            ctx(enforceKcal = false, enforceMacros = false, avoided = setOf("ser")))
+        assertFalse("deser NIE może być fałszywie odrzucony przez AVOID=ser", r.errors.any { it.code == "avoided_product" })
     }
 
     @Test

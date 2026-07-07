@@ -40,6 +40,7 @@ import kotlinx.coroutines.launch
 import pl.filebit.dietetyk.DietetykApp
 import pl.filebit.dietetyk.data.db.EnergyLogEntity
 import pl.filebit.dietetyk.data.db.FoodProductEntity
+import pl.filebit.dietetyk.data.db.Pref
 
 /** Baza produktów z makro + ulubione. Wejście z FAB „Co chcesz dodać?" i z Profilu. */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
@@ -60,9 +61,13 @@ fun ProductsScreen(app: DietetykApp, onBack: () -> Unit) {
     }
     // Kategorie z licznikami (posortowane alfabetycznie).
     val categories = remember(all) { all.groupBy { it.category.ifBlank { "Inne" } }.toSortedMap() }
-    val favCount = all.count { it.favorite }
+    val favCount = all.count { it.preference == Pref.PREFER }
 
-    val toggleStar: (FoodProductEntity) -> Unit = { p -> scope.launch { app.database.foodProductDao().setFavorite(p.id, !p.favorite) } }
+    // Tap na sercu cykluje smak: obojętne → lubię ❤️ → nie jem 🚫 → obojętne. Jedno źródło prawdy.
+    val toggleStar: (FoodProductEntity) -> Unit = { p ->
+        val next = when (p.preference) { Pref.NEUTRAL -> Pref.PREFER; Pref.PREFER -> Pref.AVOID; else -> Pref.NEUTRAL }
+        scope.launch { app.database.foodProductDao().setPreference(p.id, next) }
+    }
 
     var editProduct by remember { mutableStateOf<FoodProductEntity?>(null) }
     // Wyszukiwanie w OpenFoodFacts (baza 108 to za mało — dociągamy z sieci na żądanie).
@@ -87,7 +92,7 @@ fun ProductsScreen(app: DietetykApp, onBack: () -> Unit) {
     // Tytuł nagłówka + akcja wstecz zależnie od poziomu.
     val headerTitle = when {
         searching -> "← Produkty"
-        selectedCat == "★" -> "← Ulubione"
+        selectedCat == "★" -> "← Lubię"
         selectedCat != null -> "← $selectedCat"
         else -> "← Produkty"
     }
@@ -135,7 +140,7 @@ fun ProductsScreen(app: DietetykApp, onBack: () -> Unit) {
                 }
                 // 2) Poziom kategorii → lista folderów (ikona kategorii + nazwa + licznik).
                 selectedCat == null -> {
-                    if (favCount > 0) item { CategoryFolder("⭐", "Ulubione", favCount) { selectedCat = "★" } }
+                    if (favCount > 0) item { CategoryFolder("❤️", "Lubię", favCount) { selectedCat = "★" } }
                     categories.forEach { (cat, list) ->
                         item { CategoryFolder(catEmoji(cat), cat, list.size) { selectedCat = cat } }
                     }
@@ -143,7 +148,7 @@ fun ProductsScreen(app: DietetykApp, onBack: () -> Unit) {
                 }
                 // 3) Wewnątrz kategorii → produkty tej kategorii (obecny styl wierszy).
                 else -> {
-                    val list = if (selectedCat == "★") all.filter { it.favorite } else (categories[selectedCat] ?: emptyList())
+                    val list = if (selectedCat == "★") all.filter { it.preference == Pref.PREFER } else (categories[selectedCat] ?: emptyList())
                     items(list, key = { it.id }) { p -> ProductRow(p, onTap = { detail = p }, onStar = { toggleStar(p) }) }
                     if (list.isEmpty()) item { EmptyState(false, "") { showAdd = true } }
                 }
@@ -214,11 +219,11 @@ private fun ProductRow(p: FoodProductEntity, onTap: () -> Unit, onStar: () -> Un
             Text(p.name, color = Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
             Text("${p.kcal} kcal · B ${fmt(p.proteinG)} · W ${fmt(p.carbsG)} · T ${fmt(p.fatG)} /100g", color = Palette.Muted, fontSize = 12.sp, maxLines = 1)
         }
-        Icon(
-            imageVector = if (p.favorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
-            contentDescription = if (p.favorite) "Ulubiony" else "Dodaj do ulubionych",
-            tint = if (p.favorite) Palette.Green else Palette.Muted,
-            modifier = Modifier.clip(androidx.compose.foundation.shape.CircleShape).clickable { onStar() }.padding(8.dp).size(22.dp)
+        // Smak: 🤍 obojętne → ❤️ lubię → 🚫 nie jem (tap cykluje). Jedno źródło prawdy o preferencji.
+        Text(
+            when (p.preference) { Pref.PREFER -> "❤️"; Pref.AVOID -> "🚫"; else -> "🤍" },
+            fontSize = 20.sp,
+            modifier = Modifier.clip(androidx.compose.foundation.shape.CircleShape).clickable { onStar() }.padding(8.dp)
         )
     }
 }
