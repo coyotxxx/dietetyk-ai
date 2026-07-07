@@ -230,8 +230,8 @@ fun ProfileScreen(app: DietetykApp, onBrowseProducts: () -> Unit = {}, onOpenBac
             updateStatus = "Sprawdzam…"
             scope.launch {
                 val u = UpdateChecker.latest(BuildConfig.VERSION_NAME)
-                if (u == null) updateStatus = "Masz najnowszą (${BuildConfig.VERSION_NAME})"
-                else { updateStatus = "Dostępna ${u.version}"; manualUpdate = u }
+                if (u == null) updateStatus = "Masz najnowszą ›"
+                else { updateStatus = "Dostępna ${u.version} ›"; manualUpdate = u }
             }
         }
         manualUpdate?.let { u -> UpdateSheet(u) { manualUpdate = null } }
@@ -268,8 +268,13 @@ fun ProfileScreen(app: DietetykApp, onBrowseProducts: () -> Unit = {}, onOpenBac
 private val EQUIP_OPTIONS = listOf("airfryer" to "Air Fryer", "thermomix" to "Thermomix", "piekarnik" to "Piekarnik", "mikrofalowka" to "Mikrofalówka")
 
 private fun equipmentSummary(equip: String): String {
+    // Krótki skrót (pierwszy + licznik) — pełna lista jest po wejściu, nie zaśmiecamy wiersza.
     val names = equip.split(",").mapNotNull { k -> EQUIP_OPTIONS.firstOrNull { it.first == k.trim() }?.second }
-    return if (names.isEmpty()) "Kuchenka ›" else names.joinToString(", ") + " ›"
+    return when {
+        names.isEmpty() -> "Kuchenka ›"
+        names.size == 1 -> "${names[0]} ›"
+        else -> "${names[0]} +${names.size - 1} ›"
+    }
 }
 
 @Composable
@@ -306,10 +311,16 @@ private fun SettingRow(label: String, value: String, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().padding(top = 8.dp).card(12.dp).background(Palette.Card, RoundedCornerShape(12.dp))
             .clickable { onClick() }.padding(14.dp),
-        horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(label, color = Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-        Text(value, color = Palette.Green, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        Text(label, color = Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        // Wartość: zawsze 1 linia, wyrównana do prawej, „…" gdy za długa — koniec brzydkiego zawijania.
+        Text(
+            value, color = Palette.Green, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            textAlign = androidx.compose.ui.text.style.TextAlign.End,
+            modifier = Modifier.weight(1f).padding(start = 10.dp)
+        )
     }
 }
 
