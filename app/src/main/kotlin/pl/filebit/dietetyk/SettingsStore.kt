@@ -92,6 +92,11 @@ class SettingsStore(context: Context) {
         get() = prefs.getBoolean("notifications_enabled", true)
         set(v) { prefs.edit().putBoolean("notifications_enabled", v).apply() }
 
+    /** Czy codzienna automatyczna kopia zapasowa (lokalna) jest włączona. */
+    var autoBackupEnabled: Boolean
+        get() = prefs.getBoolean("auto_backup_enabled", true)
+        set(v) { prefs.edit().putBoolean("auto_backup_enabled", v).apply() }
+
     /** Zjedzone posiłki danego dnia (stary format, do migracji). */
     fun eatenMeals(dayKey: String): Set<String> = prefs.getStringSet("eaten_$dayKey", emptySet()) ?: emptySet()
 

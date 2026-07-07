@@ -59,7 +59,14 @@ fun AppScaffold(app: DietetykApp) {
     LaunchedEffect(Unit) { if (tab == null) tab = if (app.profileRepo.get() != null) Tab.DZIS else Tab.DIETETYK }
     var showNotifs by remember { mutableStateOf(false) }
     var showProducts by remember { mutableStateOf(false) }
-    val overlay = showNotifs || showProducts
+    var showBackup by remember { mutableStateOf(false) }
+    val overlay = showNotifs || showProducts || showBackup
+
+    // Aktualizacja: sprawdź raz na starcie → bottom sheet (6.2), jedno miejsce zamiast banera na Dziś.
+    var updateInfo by remember { mutableStateOf<pl.filebit.dietetyk.update.UpdateInfo?>(null) }
+    var updateDismissed by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { updateInfo = pl.filebit.dietetyk.update.UpdateChecker.latest(pl.filebit.dietetyk.BuildConfig.VERSION_NAME) }
+    updateInfo?.let { u -> if (!updateDismissed) UpdateSheet(u) { updateDismissed = true } }
     Scaffold(
         containerColor = Palette.Bg,
         bottomBar = { if (!overlay && tab != null) BottomBar(tab!!) { tab = it } }
@@ -68,12 +75,13 @@ fun AppScaffold(app: DietetykApp) {
             when {
                 showNotifs -> NotificationsScreen(app) { showNotifs = false }
                 showProducts -> ProductsScreen(app) { showProducts = false }
+                showBackup -> BackupScreen(app) { showBackup = false }
                 else -> when (tab) {
                     Tab.DZIS -> TodayScreen(app, onBell = { showNotifs = true }, onGoToChat = { tab = Tab.DIETETYK }, onBrowseProducts = { showProducts = true })
                     Tab.PLAN -> PlanScreen(app, onGoToChat = { tab = Tab.DIETETYK })
                     Tab.DIETETYK -> ChatScreen(app, Modifier.fillMaxSize())
                     Tab.POSTEPY -> ProgressScreen(app, onGoToChat = { tab = Tab.DIETETYK })
-                    Tab.PROFIL -> ProfileScreen(app, onBrowseProducts = { showProducts = true })
+                    Tab.PROFIL -> ProfileScreen(app, onBrowseProducts = { showProducts = true }, onOpenBackup = { showBackup = true })
                     null -> {}
                 }
             }

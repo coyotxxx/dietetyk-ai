@@ -130,11 +130,8 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
     }
 
     val unread by app.database.notificationDao().unreadCount().collectAsState(initial = 0)
-    var update by remember { mutableStateOf<UpdateInfo?>(null) }
-    var updating by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    LaunchedEffect(Unit) { update = UpdateChecker.latest(BuildConfig.VERSION_NAME) }
 
     // Aparat: zdjęcie posiłku → wysyłka do czatu (AI rozpoznaje + liczy makro).
     var showAddSheet by remember { mutableStateOf(false) }
@@ -213,19 +210,7 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
             }
         }
 
-        update?.let { u ->
-            Row(
-                Modifier.fillMaxWidth().padding(bottom = 12.dp).background(Palette.Green, RoundedCornerShape(14.dp))
-                    .clickable(enabled = !updating) {
-                        updating = true
-                        scope.launch { ApkInstaller.downloadAndInstall(context, u.apkUrl); updating = false }
-                    }.padding(14.dp),
-                horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("⬆️ Nowa wersja ${u.version} dostępna", color = androidx.compose.ui.graphics.Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                Text(if (updating) "Pobieram…" else "Pobierz", color = androidx.compose.ui.graphics.Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
-            }
-        }
+        // (Aktualizacja przeniesiona do bottom sheet 6.2 w AppScaffold — koniec z banerem na Dziś.)
 
         val g = goal
         if (g == null) {

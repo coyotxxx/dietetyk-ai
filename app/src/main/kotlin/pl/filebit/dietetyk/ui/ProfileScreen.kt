@@ -43,7 +43,7 @@ import pl.filebit.dietetyk.core.model.NutritionProfile
 private fun kg(d: Double?): String = d?.let { (if (it % 1.0 == 0.0) "%.0f" else "%.1f").format(it).replace('.', ',') } ?: "—"
 
 @Composable
-fun ProfileScreen(app: DietetykApp, onBrowseProducts: () -> Unit = {}) {
+fun ProfileScreen(app: DietetykApp, onBrowseProducts: () -> Unit = {}, onOpenBackup: () -> Unit = {}) {
     var profile by remember { mutableStateOf<NutritionProfile?>(null) }
     var loaded by remember { mutableStateOf(false) }
     var currentW by remember { mutableStateOf<Double?>(null) }
@@ -225,79 +225,19 @@ fun ProfileScreen(app: DietetykApp, onBrowseProducts: () -> Unit = {}) {
         SettingRow("🔔 Powiadomienia (wizyty)", if (notifOn) "Włączone" else "Wyłączone") {
             notifOn = !notifOn; app.settings.notificationsEnabled = notifOn
         }
+        var manualUpdate by remember { mutableStateOf<pl.filebit.dietetyk.update.UpdateInfo?>(null) }
         SettingRow("⬆️ Sprawdź aktualizacje", updateStatus.ifBlank { "wersja ${BuildConfig.VERSION_NAME}" }) {
             updateStatus = "Sprawdzam…"
             scope.launch {
                 val u = UpdateChecker.latest(BuildConfig.VERSION_NAME)
                 if (u == null) updateStatus = "Masz najnowszą (${BuildConfig.VERSION_NAME})"
-                else {
-                    updateStatus = "Pobieram ${u.version}…"
-                    ApkInstaller.downloadAndInstall(ctx, u.apkUrl)
-                    updateStatus = "Dostępna ${u.version}"
-                }
+                else { updateStatus = "Dostępna ${u.version}"; manualUpdate = u }
             }
         }
+        manualUpdate?.let { u -> UpdateSheet(u) { manualUpdate = null } }
         SettingRow("🔑 Klucz Claude API", "Zmień ›") { showKeyDialog = true }
-        var showExportDialog by remember { mutableStateOf(false) }
-        var includeApiKey by remember { mutableStateOf(true) }
-        SettingRow("💾 Kopia zapasowa", "Udostępnij ›") { showExportDialog = true }
-        if (showExportDialog) {
-            androidx.compose.material3.AlertDialog(
-                onDismissRequest = { showExportDialog = false },
-                title = { Text("Kopia zapasowa") },
-                text = {
-                    Column {
-                        Text("Kopia zawiera profil, plan, pomiary, historię i ustawienia.", fontSize = 14.sp)
-                        Row(Modifier.fillMaxWidth().padding(top = 12.dp).clickable { includeApiKey = !includeApiKey }, verticalAlignment = Alignment.CenterVertically) {
-                            androidx.compose.material3.Checkbox(checked = includeApiKey, onCheckedChange = { includeApiKey = it })
-                            Column(Modifier.padding(start = 4.dp)) {
-                                Text("Dołącz klucz API", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                                Text("Potrzebny do rozmów — trzymaj plik bezpiecznie.", fontSize = 12.sp, color = Palette.Muted)
-                            }
-                        }
-                    }
-                },
-                confirmButton = {
-                    androidx.compose.material3.TextButton(onClick = {
-                        showExportDialog = false
-                        Backup.exportShareIntent(ctx, app, includeApiKey)?.let { ctx.startActivity(Intent.createChooser(it, "Kopia zapasowa")) }
-                    }) { Text("Udostępnij") }
-                },
-                dismissButton = { androidx.compose.material3.TextButton(onClick = { showExportDialog = false }) { Text("Anuluj") } }
-            )
-        }
-
-        var pendingRestoreUri by remember { mutableStateOf<android.net.Uri?>(null) }
-        var restoreError by remember { mutableStateOf<String?>(null) }
-        val restoreLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-            androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
-        ) { uri -> if (uri != null) pendingRestoreUri = uri }
-        SettingRow("♻️ Przywróć z kopii", "Wybierz plik ›") { restoreLauncher.launch(arrayOf("*/*")) }
-        pendingRestoreUri?.let { uri ->
-            androidx.compose.material3.AlertDialog(
-                onDismissRequest = { pendingRestoreUri = null },
-                title = { Text("Przywrócić kopię?") },
-                text = { Text("Obecne dane zostaną zastąpione danymi z kopii (profil, plan, pomiary, historia, ustawienia). Zrobimy kopię bezpieczeństwa, a aplikacja uruchomi się ponownie.") },
-                confirmButton = {
-                    androidx.compose.material3.TextButton(onClick = {
-                        val r = Backup.restoreFromUri(ctx, uri)
-                        pendingRestoreUri = null
-                        when (r) {
-                            is Backup.RestoreResult.Success -> Backup.restartApp(ctx)
-                            is Backup.RestoreResult.Error -> restoreError = r.message
-                        }
-                    }) { Text("Przywróć") }
-                },
-                dismissButton = { androidx.compose.material3.TextButton(onClick = { pendingRestoreUri = null }) { Text("Anuluj") } }
-            )
-        }
-        restoreError?.let { msg ->
-            androidx.compose.material3.AlertDialog(
-                onDismissRequest = { restoreError = null },
-                title = { Text("Nie przywrócono") }, text = { Text(msg) },
-                confirmButton = { androidx.compose.material3.TextButton(onClick = { restoreError = null }) { Text("OK") } }
-            )
-        }
+        // Kopia zapasowa — jeden czysty ekran (eksport + przywróć + auto-kopia razem), zamiast rozproszonych wierszy.
+        SettingRow("💾 Kopia zapasowa", "Eksport / przywróć ›") { onOpenBackup() }
 
         var showClearChat by remember { mutableStateOf(false) }
         SettingRow("🗑️ Wyczyść rozmowę", "Wyczyść ›") { showClearChat = true }

@@ -30,13 +30,12 @@ object Backup {
 
     // === EKSPORT (ZIP: manifest.json + dietetyk.db + prefs.json) ===
 
-    fun exportShareIntent(context: Context, app: DietetykApp, includeApiKey: Boolean = true): Intent? = runCatching {
+    /** Zapisuje ZIP (manifest+db+prefs) do wskazanego pliku. Wspólny rdzeń eksportu i auto-kopii. */
+    private fun writeBackupZip(context: Context, app: DietetykApp, out: File, includeApiKey: Boolean) {
         runCatching { app.database.query(SimpleSQLiteQuery("PRAGMA wal_checkpoint(TRUNCATE)")).close() }
         val dbFile = context.getDatabasePath("dietetyk.db")
-        if (!dbFile.exists()) return null
-
-        val dir = File(context.cacheDir, "backup").apply { mkdirs() }
-        val out = File(dir, "dietetyk_backup_${System.currentTimeMillis()}.zip")
+        require(dbFile.exists()) { "brak bazy" }
+        out.parentFile?.mkdirs()
         ZipOutputStream(out.outputStream()).use { zos ->
             val manifest = JSONObject().apply {
                 put("backupVersion", BACKUP_VERSION)
@@ -48,6 +47,13 @@ object Backup {
             zos.putNextEntry(ZipEntry("dietetyk.db")); dbFile.inputStream().use { it.copyTo(zos) }; zos.closeEntry()
             zos.putNextEntry(ZipEntry("prefs.json")); zos.write(prefsToJson(context, includeApiKey).toString().toByteArray()); zos.closeEntry()
         }
+    }
+
+    fun exportShareIntent(context: Context, app: DietetykApp, includeApiKey: Boolean = true): Intent? = runCatching {
+        val dir = File(context.cacheDir, "backup").apply { mkdirs() }
+        val out = File(dir, "dietetyk_backup_${System.currentTimeMillis()}.zip")
+        writeBackupZip(context, app, out, includeApiKey)
+        markBackupDone(context)
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", out)
         Intent(Intent.ACTION_SEND).apply {
             type = "application/zip"
@@ -56,6 +62,24 @@ object Backup {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
     }.getOrNull()
+
+    /** Auto-kopia: zapis do zewn. katalogu aplikacji (widoczny w menedżerze plików, przeżywa reinstalację przez restore). */
+    fun writeLocalBackup(context: Context, app: DietetykApp): Boolean = runCatching {
+        val dir = context.getExternalFilesDir("backups") ?: File(context.filesDir, "backups")
+        val out = File(dir, "dietetyk_auto_backup.zip")
+        writeBackupZip(context, app, out, includeApiKey = true)
+        markBackupDone(context)
+        true
+    }.getOrDefault(false)
+
+    /** Zapamiętaj czas ostatniej kopii (do ekranu „Ostatnia kopia"). */
+    private fun markBackupDone(context: Context) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putLong("last_backup_at", System.currentTimeMillis()).apply()
+    }
+
+    fun lastBackupAt(context: Context): Long =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getLong("last_backup_at", 0L)
 
     private fun prefsToJson(context: Context, includeApiKey: Boolean): JSONObject {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)

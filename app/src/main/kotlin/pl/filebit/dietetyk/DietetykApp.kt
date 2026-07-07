@@ -77,6 +77,12 @@ class DietetykApp : Application() {
             ExistingPeriodicWorkPolicy.KEEP,
             PeriodicWorkRequestBuilder<CheckInWorker>(7, TimeUnit.DAYS).build()
         )
+        // Codzienna automatyczna kopia zapasowa (lokalna) — zero utraty danych.
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "daily_backup",
+            ExistingPeriodicWorkPolicy.KEEP,
+            PeriodicWorkRequestBuilder<pl.filebit.dietetyk.notify.BackupWorker>(1, TimeUnit.DAYS).build()
+        )
     }
 
     /** Jednorazowe przeniesienie cel/posiłki/preferencje z SharedPreferences do profilu w Room. */
