@@ -23,6 +23,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -219,7 +220,13 @@ fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier) {
             }
         }
 
-        LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Czat zawsze na dole: zjedź do najnowszej przy wejściu i przy każdej nowej wiadomości/„pisze…".
+        val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+        LaunchedEffect(vm.messages.size, vm.sending) {
+            val count = vm.messages.size + if (vm.sending) 1 else 0
+            if (count > 0) listState.scrollToItem(count - 1)
+        }
+        LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(vm.messages) { msg -> MessageItem(msg, vm.sending) { vm.send(it, apiKey) } }
             if (vm.sending) item { Text("Dietetyk pisze…", color = Palette.Green, fontSize = 13.sp) }
         }
