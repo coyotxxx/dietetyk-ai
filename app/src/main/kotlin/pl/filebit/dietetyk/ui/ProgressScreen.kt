@@ -85,15 +85,58 @@ fun ProgressScreen(app: DietetykApp, onGoToChat: () -> Unit = {}) {
         val startRanged = ranged.firstOrNull()?.weightKg
         val delta = if (latest != null && startRanged != null) latest - startRanged else null
 
-        // Karta wagi + delta
-        Column(Modifier.fillMaxWidth().padding(top = 12.dp).card(18.dp).background(Palette.Card, RoundedCornerShape(18.dp)).padding(18.dp)) {
-            Text("Aktualna waga", color = Palette.Muted, fontSize = 13.sp)
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(latest?.let { kgP(it) + " kg" } ?: "—", color = Palette.TextDark, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold)
-                if (delta != null && kotlin.math.abs(delta) >= 0.1) {
-                    val down = delta < 0
-                    Box(Modifier.padding(start = 10.dp, bottom = 4.dp).background(Palette.GreenTint, RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 3.dp)) {
-                        Text((if (down) "↓ " else "↑ ") + kgP(kotlin.math.abs(delta)) + " kg", color = if (down) Palette.Green else Palette.Orange, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
+        // DROGA DO CELU — start → teraz → cel: motywująca wizualizacja (gdy jest cel i pomiary).
+        val startW = allSorted.firstOrNull()?.weightKg
+        val canJourney = latest != null && goalW != null && startW != null && kotlin.math.abs(startW - goalW) >= 0.1
+        if (canJourney) {
+            val prog = ((latest!! - startW!!) / (goalW!! - startW)).coerceIn(0.0, 1.0).toFloat()
+            val toGo = kotlin.math.abs(latest - goalW)
+            val reached = toGo < 0.3
+            val subtitle = when {
+                reached -> "Cel osiągnięty — gratulacje! 🎯"
+                prog >= 0.5 -> "Większość drogi za Tobą — trzymaj tempo 🌱"
+                prog > 0.0 -> "Dobry początek — krok po kroku 🌱"
+                else -> "Startujemy — pierwszy krok za Tobą"
+            }
+            Column(Modifier.fillMaxWidth().padding(top = 12.dp).card(20.dp).background(Palette.Card, RoundedCornerShape(20.dp)).padding(20.dp)) {
+                Text("Droga do celu", color = Palette.TextDark, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
+                Text(subtitle, color = Palette.Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
+                Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.Bottom) {
+                    Text("Teraz ", color = Palette.Muted, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text("${kgP(latest)} kg", color = Palette.TextDark, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                    if (delta != null && kotlin.math.abs(delta) >= 0.1) {
+                        val down = delta < 0
+                        Text("  ${if (down) "↓" else "↑"} ${kgP(kotlin.math.abs(delta))} kg", color = if (down) Palette.Green else Palette.Orange, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+                    }
+                }
+                // Pasek postępu start→cel (wypełnienie = dotychczasowa droga).
+                Box(Modifier.fillMaxWidth().padding(top = 14.dp).height(14.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Palette.GreenTint)) {
+                    Box(Modifier.fillMaxWidth(prog).height(14.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Palette.Green))
+                }
+                Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Start ${kgP(startW)} kg", color = Palette.Muted, fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+                    Text("🏁 Cel ${kgP(goalW)} kg", color = Palette.GreenDark, fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+                }
+                Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.Center) {
+                    Box(Modifier.clip(RoundedCornerShape(14.dp)).background(Palette.GreenTint, RoundedCornerShape(14.dp)).padding(horizontal = 16.dp, vertical = 9.dp)) {
+                        Text(
+                            if (reached) "Cel osiągnięty! 🎯" else "Jeszcze ${kgP(toGo)} kg — ${if (prog >= 0.7) "jesteś blisko!" else "dasz radę!"}",
+                            color = Palette.GreenDark, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold
+                        )
+                    }
+                }
+            }
+        } else {
+            // Fallback bez celu/pomiarów: sama aktualna waga + delta.
+            Column(Modifier.fillMaxWidth().padding(top = 12.dp).card(18.dp).background(Palette.Card, RoundedCornerShape(18.dp)).padding(18.dp)) {
+                Text("Aktualna waga", color = Palette.Muted, fontSize = 13.sp)
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(latest?.let { kgP(it) + " kg" } ?: "—", color = Palette.TextDark, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold)
+                    if (delta != null && kotlin.math.abs(delta) >= 0.1) {
+                        val down = delta < 0
+                        Box(Modifier.padding(start = 10.dp, bottom = 4.dp).background(Palette.GreenTint, RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 3.dp)) {
+                            Text((if (down) "↓ " else "↑ ") + kgP(kotlin.math.abs(delta)) + " kg", color = if (down) Palette.Green else Palette.Orange, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
+                        }
                     }
                 }
             }
