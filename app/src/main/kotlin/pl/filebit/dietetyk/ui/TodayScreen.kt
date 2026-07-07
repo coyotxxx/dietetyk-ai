@@ -174,6 +174,7 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
         )
     }
 
+    var showHowTo by remember { mutableStateOf(!app.settings.howToShown) }
     Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
@@ -188,6 +189,19 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
                         Text("$unread", color = androidx.compose.ui.graphics.Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     }
                 }
+            }
+        }
+
+        // Jednorazowa karta „jak korzystać" (po wywiadzie) — uczy nawigacji, nie tylko zbiera dane.
+        if (showHowTo && hasProfile) {
+            Column(Modifier.fillMaxWidth().padding(bottom = 12.dp).card(18.dp).background(Palette.GreenTint, RoundedCornerShape(18.dp)).padding(16.dp)) {
+                Text("Jak korzystać z aplikacji 🌱", color = Palette.GreenDark, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
+                Text("🔍  Dodaj posiłek przyciskiem „+ Dodaj” — szukaj, zrób zdjęcie, zeskanuj albo po prostu powiedz dietetykowi.", color = Palette.TextDark, fontSize = 14.sp, modifier = Modifier.padding(top = 10.dp))
+                Text("💬  Dietetyk (środek) — rozmawiaj, pytaj, zmieniaj plan.", color = Palette.TextDark, fontSize = 14.sp, modifier = Modifier.padding(top = 6.dp))
+                Text("🍽  Plan — Twój tydzień, dzień po dniu.   📈  Postępy — waga, cel, wykres.", color = Palette.TextDark, fontSize = 14.sp, modifier = Modifier.padding(top = 6.dp))
+                Box(
+                    Modifier.padding(top = 14.dp).clip(RoundedCornerShape(12.dp)).background(Palette.Green, RoundedCornerShape(12.dp)).clickable { app.settings.howToShown = true; showHowTo = false }.padding(horizontal = 18.dp, vertical = 9.dp)
+                ) { Text("Rozumiem", color = androidx.compose.ui.graphics.Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
             }
         }
 

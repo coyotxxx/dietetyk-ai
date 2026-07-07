@@ -59,6 +59,11 @@ class SettingsStore(context: Context) {
         get() = prefs.getInt("recipe_variant", 0)
         set(v) { prefs.edit().putInt("recipe_variant", v).apply() }
 
+    /** Czy pokazano już jednorazową kartę „jak korzystać" (po wywiadzie, na Dziś). */
+    var howToShown: Boolean
+        get() = prefs.getBoolean("how_to_shown", false)
+        set(v) { prefs.edit().putBoolean("how_to_shown", v).apply() }
+
     /** Sprzęt kuchenny użytkownika (CSV: "airfryer,thermomix") — filtruje warianty przepisów.
      *  Kuchenka/piekarnik („tradycyjnie") zawsze dostępne. Puste = tylko tradycyjnie. */
     var kitchenEquipment: String

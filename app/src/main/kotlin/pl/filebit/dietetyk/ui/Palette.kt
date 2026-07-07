@@ -60,6 +60,16 @@ val DarkColors = AppColors(
 
 val LocalAppColors = staticCompositionLocalOf { LightColors }
 
+/** Font marki z designu (Plus Jakarta Sans, wariantowy — wagi 400–800 z jednego pliku). */
+@OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
+private val JakartaFamily = androidx.compose.ui.text.font.FontFamily(
+    androidx.compose.ui.text.font.Font(pl.filebit.dietetyk.R.font.plus_jakarta_sans, androidx.compose.ui.text.font.FontWeight.Normal, variationSettings = androidx.compose.ui.text.font.FontVariation.Settings(androidx.compose.ui.text.font.FontVariation.weight(400))),
+    androidx.compose.ui.text.font.Font(pl.filebit.dietetyk.R.font.plus_jakarta_sans, androidx.compose.ui.text.font.FontWeight.Medium, variationSettings = androidx.compose.ui.text.font.FontVariation.Settings(androidx.compose.ui.text.font.FontVariation.weight(500))),
+    androidx.compose.ui.text.font.Font(pl.filebit.dietetyk.R.font.plus_jakarta_sans, androidx.compose.ui.text.font.FontWeight.SemiBold, variationSettings = androidx.compose.ui.text.font.FontVariation.Settings(androidx.compose.ui.text.font.FontVariation.weight(600))),
+    androidx.compose.ui.text.font.Font(pl.filebit.dietetyk.R.font.plus_jakarta_sans, androidx.compose.ui.text.font.FontWeight.Bold, variationSettings = androidx.compose.ui.text.font.FontVariation.Settings(androidx.compose.ui.text.font.FontVariation.weight(700))),
+    androidx.compose.ui.text.font.Font(pl.filebit.dietetyk.R.font.plus_jakarta_sans, androidx.compose.ui.text.font.FontWeight.ExtraBold, variationSettings = androidx.compose.ui.text.font.FontVariation.Settings(androidx.compose.ui.text.font.FontVariation.weight(800))),
+)
+
 /** Wygląd karty: delikatny cień w trybie jasnym, obwódka w ciemnym (cienie tam niewidoczne). */
 @Composable
 fun Modifier.card(radius: Dp = 18.dp): Modifier {
@@ -107,6 +117,11 @@ fun DietetykTheme(themeMode: String = "system", content: @Composable () -> Unit)
     }
     val colors = if (dark) DarkColors else LightColors
     CompositionLocalProvider(LocalAppColors provides colors) {
-        androidx.compose.material3.MaterialTheme(colorScheme = colors.toM3Scheme(dark)) { content() }
+        androidx.compose.material3.MaterialTheme(colorScheme = colors.toM3Scheme(dark)) {
+            // Font marki globalnie — wszystkie Text bez jawnego fontFamily dziedziczą Plus Jakarta Sans.
+            CompositionLocalProvider(
+                androidx.compose.material3.LocalTextStyle provides androidx.compose.material3.LocalTextStyle.current.copy(fontFamily = JakartaFamily)
+            ) { content() }
+        }
     }
 }
