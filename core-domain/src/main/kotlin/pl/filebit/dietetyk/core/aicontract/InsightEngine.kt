@@ -8,7 +8,12 @@ import java.time.LocalDate
  * Typ proaktywnej podpowiedzi. KOLEJNOŚĆ = PRIORYTET (pierwszy pasujący wygrywa → MAX 1).
  * BEZPIECZEŃSTWO najwyżej, potem re-engagement, potem klasyk dietetyka, potem personalizowany makro-wow.
  */
-enum class InsightType { SAFETY, LOGGING_GAP, WEIGHT_STALL, PROTEIN_GAP }
+enum class InsightType {
+    // Problemy (najwyższy priorytet — pierwszy pasujący wygrywa):
+    SAFETY, LOGGING_GAP, WEIGHT_STALL, PROTEIN_GAP,
+    // Świętowanie zwycięstw nie-wagowych (NAJNIŻSZY priorytet — tylko gdy NIE ma problemu; wysoka poprzeczka):
+    PROTEIN_WIN, CONSISTENCY_WIN
+}
 
 /** Jedna proaktywna podpowiedź na Dziś. Tekst = krótki wskaźnik; głębia (coaching) dzieje się w czacie. */
 data class Insight(
@@ -32,7 +37,10 @@ object InsightEngine {
         InsightType.SAFETY to 0L,
         InsightType.LOGGING_GAP to 3L,
         InsightType.WEIGHT_STALL to 7L,
-        InsightType.PROTEIN_GAP to 4L
+        InsightType.PROTEIN_GAP to 4L,
+        // Świętowanie rzadko (żeby nie spowszedniało/nie infantylizowało):
+        InsightType.PROTEIN_WIN to 14L,
+        InsightType.CONSISTENCY_WIN to 14L
     )
 
     fun detect(ctx: DietitianContext, cooldowns: Map<InsightType, LocalDate>, today: LocalDate): Insight? {
@@ -94,5 +102,22 @@ object InsightEngine {
                 )
             } else null
         }
+
+        // ŚWIĘTOWANIE — tylko przy REALNYM, znaczącym wzorcu (proporcjonalnie, bez konfetti za drobiazgi).
+        InsightType.PROTEIN_WIN ->
+            if (ctx.completeLogDays14d >= 7 && ctx.adherence14d.avgProteinPct in 95..140) Insight(
+                type,
+                "Białko trzymasz ostatnio naprawdę równo — to buduje mięśnie i sytość. Tak dalej! 💪",
+                "Dzięki",
+                "Widzę, że dobrze trzymam białko — co jeszcze warto podkręcić?"
+            ) else null
+
+        InsightType.CONSISTENCY_WIN ->
+            if (ctx.completeLogDays14d >= 12) Insight(
+                type,
+                "Prawie codziennie logujesz od dwóch tygodni — ta konsekwencja procentuje bardziej niż perfekcja. 🌱",
+                "Miło to słyszeć",
+                "Trzymam konsekwencję w logowaniu — jak to najlepiej wykorzystać?"
+            ) else null
     }
 }

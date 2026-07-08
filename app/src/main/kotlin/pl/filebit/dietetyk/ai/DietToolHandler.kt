@@ -58,6 +58,7 @@ class DietToolHandler(
             "search_products" -> searchProducts(input)
             "add_missing_product" -> addMissingProduct(input)
             "set_food_preference" -> setFoodPreference(input)
+            "remember_context" -> rememberContext(input, now)
             else -> ToolResult("Narzędzie '$name' będzie dostępne wkrótce.")
         }
     }
@@ -128,6 +129,15 @@ class DietToolHandler(
      * Zapis SMAKU (PREFER/AVOID/NEUTRAL) na produkt — strukturalne, jedno źródło prawdy. Wołane przez AI,
      * gdy wychwyci preferencję w rozmowie („nie znoszę twarogu"). Match: exact norm → pierwszy trafny w bazie.
      */
+    /** Pamięć miękka: zapis faktu o życiu usera (stres/sen/nastrój), gdy sam o nim wspomni. */
+    private suspend fun rememberContext(input: JsonObject, now: Long): ToolResult {
+        val note = input.string("note") ?: return ToolResult("Podaj notatkę (note).", isError = true)
+        app.database.aiMemoryDao().insert(
+            pl.filebit.dietetyk.data.db.AiMemoryEntity(note = note, createdAt = now, updatedAt = now, dirty = true)
+        )
+        return ToolResult("Zapamiętane.")
+    }
+
     private suspend fun setFoodPreference(input: JsonObject): ToolResult {
         val productName = input.string("product") ?: return ToolResult("Podaj produkt (product).", isError = true)
         val pref = when (input.string("preference")?.uppercase()) {

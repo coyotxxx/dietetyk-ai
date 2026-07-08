@@ -22,7 +22,7 @@ class InsightEngineTest {
 
     private fun ctx(
         refer: Boolean = false, daysSinceLog: Int? = 0, completeLogDays: Int = 10,
-        proteinPct: Int = 100, trendDir: TrendDirection = TrendDirection.FALLING, trendSamples: Int = 10,
+        proteinPct: Int = 88, trendDir: TrendDirection = TrendDirection.FALLING, trendSamples: Int = 10,
         goal: DietGoalType = DietGoalType.FAT_LOSS, favorites: List<String> = emptyList()
     ) = DietitianContext(
         careState = CareState(CareStage.ACTIVE),
@@ -78,5 +78,27 @@ class InsightEngineTest {
     @Test fun `priorytet gdy kilka odpala`() {
         val i = InsightEngine.detect(ctx(daysSinceLog = 4, proteinPct = 50), emptyMap(), today)
         assertEquals(InsightType.LOGGING_GAP, i?.type)
+    }
+
+    // === ŚWIĘTOWANIE (nie-wagowe) — niski priorytet, wysoka poprzeczka, nigdy przy problemie ===
+
+    @Test fun `swietuje wysokie bialko przy danych`() {
+        assertEquals(InsightType.PROTEIN_WIN, InsightEngine.detect(ctx(proteinPct = 100, completeLogDays = 8), emptyMap(), today)?.type)
+    }
+
+    @Test fun `swietuje konsekwencje logowania`() {
+        assertEquals(InsightType.CONSISTENCY_WIN, InsightEngine.detect(ctx(proteinPct = 88, completeLogDays = 13), emptyMap(), today)?.type)
+    }
+
+    @Test fun `NIE swietuje gdy jest problem - logowanie wygrywa`() {
+        assertEquals(InsightType.LOGGING_GAP, InsightEngine.detect(ctx(proteinPct = 100, completeLogDays = 8, daysSinceLog = 5), emptyMap(), today)?.type)
+    }
+
+    @Test fun `NIE swietuje gdy waga stoi (tone-deaf)`() {
+        assertEquals(InsightType.WEIGHT_STALL, InsightEngine.detect(ctx(proteinPct = 100, completeLogDays = 10, trendDir = TrendDirection.FLAT), emptyMap(), today)?.type)
+    }
+
+    @Test fun `swietowanie ma cooldown`() {
+        assertNull(InsightEngine.detect(ctx(proteinPct = 100, completeLogDays = 8), mapOf(InsightType.PROTEIN_WIN to today.minusDays(3)), today))
     }
 }

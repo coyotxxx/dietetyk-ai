@@ -50,6 +50,10 @@ interface AiMemoryDao {
     @Query("SELECT note FROM ai_memory ORDER BY createdAt DESC LIMIT :limit")
     suspend fun recentNotes(limit: Int = 20): List<String>
 
+    /** Notatki z datą — do recency-aware pamięci miękkiej (stary kontekst wygasa). */
+    @Query("SELECT * FROM ai_memory ORDER BY createdAt DESC LIMIT :limit")
+    suspend fun recentEntries(limit: Int = 20): List<AiMemoryEntity>
+
     @Insert
     suspend fun insert(memory: AiMemoryEntity): Long
 }

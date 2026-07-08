@@ -36,7 +36,16 @@ class DietitianContextBuilder(
 
         val weights = weightRepo.since(nowMs - 60 * dayMs)
         val energyLogs = energyLogDao.since(nowMs - 21 * dayMs).map { it.toModel() }
-        val memoryNotes = aiMemoryDao.recentNotes()
+        // Pamięć miękka: tylko ŚWIEŻE notatki (≤21 dni) z wiekiem — stary kontekst wygasa,
+        // żeby AI nie nawiązywało do stresu sprzed miesiąca („recency-aware", nie inwigilacja).
+        val memoryNotes = runCatching {
+            aiMemoryDao.recentEntries(20)
+                .filter { nowMs - it.createdAt <= 21L * 24 * 3600 * 1000 }
+                .map { e ->
+                    val d = ((nowMs - e.createdAt) / (24L * 3600 * 1000)).toInt()
+                    e.note + when { d <= 0 -> " (dziś)"; d == 1 -> " (wczoraj)"; else -> " ($d dni temu)" }
+                }
+        }.getOrDefault(emptyList())
         val favorites = runCatching { foodProductDao.preferred().map { it.name } }.getOrDefault(emptyList())
         val avoided = runCatching { foodProductDao.avoided().map { it.name } }.getOrDefault(emptyList())
         val daysSinceLastLog = energyLogDao.latest()?.let { ((nowMs - it.dateMs) / dayMs).toInt() }

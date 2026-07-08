@@ -282,7 +282,13 @@ private suspend fun sendToDietitian(
         "tough" -> "TON ROZMOWY: Bądź bezpośredni i wymagający — mów wprost, motywuj do dyscypliny i konsekwencji, bez owijania w bawełnę (ale z szacunkiem)."
         else -> "TON ROZMOWY: Bądź wyważony — konkretny i rzeczowy, ale ciepły i motywujący."
     }
-    val system = DietitianPrompt.systemPrompt() + "\n\n" + toneLine + "\n\n" + contextText
+    // OVERRIDE kontekstowy (ochrona zaufania): ustawiony ton to BAZA, ale gdy user jest na dnie —
+    // przyznaje się do wpadki, ma zły dzień, jest zniechęcony — bądź wspierający i NIGDY nie dobijaj,
+    // niezależnie od ustawienia „wymagający". Wsparcie w trudnym momencie ważniejsze niż dyscyplina.
+    val toneOverride = "WAZNE: powyzszy ton to punkt wyjscia, nie sztywna regula. Czytaj stan uzytkownika — " +
+        "jesli jest zniechecony, ma gorszy dzien albo przyznaje sie do potkniecia, ZAWSZE odpowiedz z empatia i wsparciem, " +
+        "nawet przy tonie wymagajacym. Nigdy nie dobijaj kogos, kto jest na dnie."
+    val system = DietitianPrompt.systemPrompt() + "\n\n" + toneLine + "\n" + toneOverride + "\n\n" + contextText
     return DietitianConversation(ClaudeHttpApi(apiKey)).send(system, history, userText, handler, imageB64 = imageB64)
 }
 

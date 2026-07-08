@@ -141,6 +141,14 @@ object AiToolCatalog {
                 AiToolParam("preference", "enum", true, "PREFER (lubi) | AVOID (nie je) | NEUTRAL (cofnij)")
             ),
             mutating = true
+        ),
+        AiToolSpec(
+            "remember_context",
+            "Zapisz MIEKKI kontekst o zyciu uzytkownika, gdy SAM o nim wspomni: stres w pracy, zly sen, ciezki tydzien, " +
+                "nastroj, wydarzenie zyciowe. Wolaj TYLKO gdy user sam to ofiaruje — NIGDY nie wypytuj proaktywnie o emocje/sen/stres. " +
+                "Dzieki temu mozesz wrocic do tego naturalnie i z troska pozniej (raz, gdy trafne). Zapisz krotki FAKT, nie interpretacje.",
+            listOf(AiToolParam("note", "string", true, "krotki fakt, np. ciezki tydzien w pracy / slabo sypia od kilku dni")),
+            mutating = true
         )
     )
 
