@@ -53,6 +53,23 @@ class DietetykApp : Application() {
         return json
     }
 
+    /** „Powtórz wczoraj" — skopiuj wczorajsze wpisy jedzenia na dziś. Zwraca liczbę skopiowanych. */
+    suspend fun repeatYesterday(): Int {
+        val z = java.time.ZoneId.systemDefault()
+        val todayStart = java.time.LocalDate.now(z).atStartOfDay(z).toInstant().toEpochMilli()
+        val yesterdayStart = todayStart - 24L * 3600 * 1000
+        val dao = database.energyLogDao()
+        val yLogs = dao.since(yesterdayStart).filter { it.dateMs < todayStart }
+        val now = System.currentTimeMillis()
+        yLogs.forEach { l ->
+            dao.insert(pl.filebit.dietetyk.data.db.EnergyLogEntity(
+                dateMs = now, kcalConsumed = l.kcalConsumed, isComplete = l.isComplete,
+                proteinG = l.proteinG, carbsG = l.carbsG, fatG = l.fatG, updatedAt = now, dirty = true
+            ))
+        }
+        return yLogs.size
+    }
+
     /** Wiadomość do automatycznego wysłania w czacie po przejściu tam (np. „Zacznij wizytę"). */
     var pendingChatMessage: String? = null
 

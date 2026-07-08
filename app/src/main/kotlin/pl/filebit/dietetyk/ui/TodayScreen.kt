@@ -175,7 +175,15 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
             onPhoto = { showAddSheet = false; launchCamera() },
             onBrowseProducts = { showAddSheet = false; onBrowseProducts() },
             onScan = { showAddSheet = false; launchScan() },
-            onTellDietitian = { showAddSheet = false; onGoToChat() }
+            onTellDietitian = { showAddSheet = false; onGoToChat() },
+            onRepeatYesterday = {
+                showAddSheet = false
+                scope.launch {
+                    val n = app.repeatYesterday()
+                    reloadKey++
+                    android.widget.Toast.makeText(context, if (n > 0) "Skopiowano $n z wczoraj" else "Wczoraj brak wpisów do skopiowania", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
         )
     }
 
@@ -349,7 +357,7 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
 }
 
 @Composable
-private fun AddMealSheet(onDismiss: () -> Unit, onPhoto: () -> Unit, onBrowseProducts: () -> Unit, onScan: () -> Unit, onTellDietitian: () -> Unit) {
+private fun AddMealSheet(onDismiss: () -> Unit, onPhoto: () -> Unit, onBrowseProducts: () -> Unit, onScan: () -> Unit, onTellDietitian: () -> Unit, onRepeatYesterday: () -> Unit) {
     @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
     androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Card) {
         Column(Modifier.fillMaxWidth().padding(20.dp).padding(bottom = 24.dp)) {
@@ -368,6 +376,7 @@ private fun AddMealSheet(onDismiss: () -> Unit, onPhoto: () -> Unit, onBrowsePro
             AddOption("📷", "Zdjęcie posiłku", "AI rozpozna danie i policzy kalorie") { onPhoto() }
             AddOption("🏷️", "Skanuj kod kreskowy", "Produkt z opakowania → makro z bazy") { onScan() }
             AddOption("💬", "Powiedz dietetykowi", "Np. „zjadłem obiad u mamy, kotlety z ziemniakami\"") { onTellDietitian() }
+            AddOption("🔁", "Powtórz wczoraj", "Ten sam zestaw posiłków co wczoraj") { onRepeatYesterday() }
         }
     }
 }

@@ -140,7 +140,11 @@ object DietitianPrompt {
             append("WAŻNE: wywołuj save_profile PO KAŻDEJ odpowiedzi z tym, co właśnie ustaliłeś (merge dopełni resztę) ")
             append("— nie czekaj z zapisem do końca, żeby pasek postępu rósł płynnie. ")
             append("Zapisuj odpowiedzi przez save_profile na bieżąco. Gdy masz komplet obowiązkowych ")
-            append("(cel, płeć, wiek, wzrost, waga, aktywność) — pokaż kartę interview_summary i zaproponuj plan.")
+            append("(cel, płeć, wiek, wzrost, waga, aktywność) — pokaż kartę interview_summary i zaproponuj plan.\n")
+            append("BEZPIECZEŃSTWO (przesiew): jeśli w rozmowie wyczujesz sygnały zaburzeń odżywiania — skrajne restrykcje, ")
+            append("kompulsywne objadanie, lęk/wstyd wokół jedzenia, bardzo niska/niezdrowa waga docelowa, obsesyjne liczenie — ")
+            append("NIE prowadź agresywnej redukcji. Okaż wsparcie, bez oceniania, i delikatnie zasugeruj konsultację ze specjalistą ")
+            append("(dietetyk kliniczny / lekarz). Zdrowie i bezpieczeństwo są WAŻNIEJSZE niż cel wagowy. Nie diagnozuj — wspieraj i odsyłaj.")
             if (state.openInterviewTopics.isNotEmpty()) {
                 append(" Wciąż do zebrania: ")
                 append(state.openInterviewTopics.joinToString(", ") { topicLabel(it) })

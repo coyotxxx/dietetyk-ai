@@ -125,6 +125,18 @@ fun ProgressScreen(app: DietetykApp, onGoToChat: () -> Unit = {}) {
                         )
                     }
                 }
+                // Tempo + szacowany czas do celu (z trendu wagi).
+                if (!reached) {
+                    val pace = pl.filebit.dietetyk.core.calc.TrendAnalyzer.analyze(allSorted).slopeKgPerWeek
+                    if (pace != null && kotlin.math.abs(pace) >= 0.05) {
+                        val toward = kotlin.math.sign(goalW!! - latest!!) == kotlin.math.sign(pace)
+                        val etaW = if (toward) (toGo / kotlin.math.abs(pace)).toInt().coerceAtLeast(1) else null
+                        val paceStr = "${if (pace < 0) "−" else "+"}${kgP(kotlin.math.abs(pace))} kg/tydz"
+                        val etaStr = etaW?.let { " · ~$it ${tyg(it)} do celu" } ?: ""
+                        Text("Tempo: $paceStr$etaStr", color = Palette.Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.fillMaxWidth().padding(top = 10.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    }
+                }
             }
         } else {
             // Fallback bez celu/pomiarów: sama aktualna waga + delta.
@@ -166,6 +178,29 @@ fun ProgressScreen(app: DietetykApp, onGoToChat: () -> Unit = {}) {
         Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             MetricTileP("Obwód pasa", waistVal?.let { kgP(it) + " cm" } ?: "—", Palette.TextDark, Modifier.weight(1f))
             MetricTileGradient("Trzymanie planu", adherence?.let { "$it%" } ?: "—", Modifier.weight(1f))
+        }
+
+        // ŚREDNIA TYGODNIOWA — „liczy się średnia, nie każdy dzień" (mniej presji niż dzienny pass/fail).
+        val weeklyAvg by androidx.compose.runtime.produceState<Triple<Int, Int, Int>?>(null, samples) {
+            val since = System.currentTimeMillis() - 7L * 24 * 3600 * 1000
+            val logs = runCatching { app.database.energyLogDao().since(since) }.getOrDefault(emptyList())
+            value = if (logs.isEmpty()) null else {
+                val byDay = logs.groupBy { java.time.Instant.ofEpochMilli(it.dateMs).atZone(java.time.ZoneId.systemDefault()).toLocalDate() }
+                val d = byDay.size.coerceAtLeast(1)
+                Triple(byDay.values.sumOf { day -> day.sumOf { it.kcalConsumed } } / d, byDay.values.sumOf { day -> day.sumOf { it.proteinG } } / d, byDay.size)
+            }
+        }
+        weeklyAvg?.let { (avgKcal, avgProt, days) ->
+            val g2 = profile?.let { pl.filebit.dietetyk.core.calc.GoalPipeline.compute(it, latestMeasuredWeightKg = latest) }
+            Column(Modifier.fillMaxWidth().padding(top = 12.dp).card(18.dp).background(Palette.Card, RoundedCornerShape(18.dp)).padding(18.dp)) {
+                Text("Ten tydzień — średnio dziennie", color = Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
+                Text("Liczy się średnia, nie każdy dzień z osobna 🌱", color = Palette.Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp, bottom = 12.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
+                    WeeklyStat("$avgKcal", "kcal" + (g2?.let { " / ${it.kcal}" } ?: ""))
+                    WeeklyStat("${avgProt}g", "białko" + (g2?.let { " / ${it.proteinG}g" } ?: ""))
+                    WeeklyStat("$days/7", "dni z wpisem")
+                }
+            }
         }
 
         // Segmented 7/30/90
@@ -256,6 +291,21 @@ private fun dayLabel(ms: Long): String {
 }
 
 private fun kgP(d: Double): String = (if (d % 1.0 == 0.0) "%.0f" else "%.1f").format(d).replace('.', ',')
+
+/** Polska odmiana „tydzień/tygodnie/tygodni". */
+private fun tyg(n: Int): String = when {
+    n == 1 -> "tydzień"
+    n % 10 in 2..4 && n % 100 !in 12..14 -> "tygodnie"
+    else -> "tygodni"
+}
+
+@Composable
+private fun WeeklyStat(value: String, label: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, color = Palette.GreenDark, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)
+        Text(label, color = Palette.Muted, fontSize = 11.5.sp, modifier = Modifier.padding(top = 2.dp))
+    }
+}
 
 @Composable
 private fun MetricTileP(label: String, value: String, tint: androidx.compose.ui.graphics.Color, modifier: Modifier) {
