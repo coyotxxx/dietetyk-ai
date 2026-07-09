@@ -13,6 +13,15 @@ enum class ActivityLevel(val tdeeMultiplier: Double) {
 enum class DietPreference { STANDARD, VEGETARIAN, VEGAN, PESCATARIAN, KETO, MEDITERRANEAN }
 
 /**
+ * Kadencja różnorodności planu — jak bardzo posiłki mają się różnić między dniami tygodnia.
+ * Dwa tryby (nie trzy: „co tydzień/miesiąc" to nie tryb, tylko regeneracja planu na wizycie).
+ * - [SAME_DAILY]  = user woli jeść codziennie podobnie (prostsze zakupy, mniej decyzji). Silnik układa
+ *   JEDEN dobry dzień i kopiuje go na cały tydzień (szybciej, taniej, mniej błędów walidacji).
+ * - [VARIED]      = user chce różnorodności — dietetyk różnicuje posiłki między dniami tygodnia.
+ */
+enum class VarietyMode { SAME_DAILY, VARIED }
+
+/**
  * Cel żywieniowy — JEDEN cel (filozofia „jeden user, jeden aktywny stan").
  * Zastępuje w Dietetyku podwójny model GymTrackera (WeightGoalType 4-typy + DietGoalType 8-typów);
  * bierzemy bogatszy, diet-relevantny 8-typowy.

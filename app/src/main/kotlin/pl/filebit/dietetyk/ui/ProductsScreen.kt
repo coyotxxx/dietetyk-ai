@@ -56,12 +56,16 @@ fun ProductsScreen(app: DietetykApp, onBack: () -> Unit) {
     var selectedCat by remember { mutableStateOf<String?>(null) }
     val q = query.trim().lowercase()
     val searching = q.isNotBlank()
-    val filtered = remember(all, q) {
-        if (q.isBlank()) all else all.filter { it.nameNorm.contains(q) || it.name.lowercase().contains(q) }
+    // Zaślepki (source="stub") to markery „nie jem" bez makr — NIE pokazujemy ich w przeglądaniu/wyszukiwaniu,
+    // tylko w folderze „Nie jem 🚫". Inaczej myliłyby usera (0 kcal) i kusiły do dodania do posiłku.
+    val browsable = remember(all) { all.filter { it.source != "stub" } }
+    val filtered = remember(browsable, q) {
+        if (q.isBlank()) browsable else browsable.filter { it.nameNorm.contains(q) || it.name.lowercase().contains(q) }
     }
     // Kategorie z licznikami (posortowane alfabetycznie).
-    val categories = remember(all) { all.groupBy { it.category.ifBlank { "Inne" } }.toSortedMap() }
+    val categories = remember(browsable) { browsable.groupBy { it.category.ifBlank { "Inne" } }.toSortedMap() }
     val favCount = all.count { it.preference == Pref.PREFER }
+    val avoidCount = all.count { it.preference == Pref.AVOID }
 
     // Tap na sercu cykluje smak: obojętne → lubię ❤️ → nie jem 🚫 → obojętne. Jedno źródło prawdy.
     val toggleStar: (FoodProductEntity) -> Unit = { p ->
@@ -93,6 +97,7 @@ fun ProductsScreen(app: DietetykApp, onBack: () -> Unit) {
     val headerTitle = when {
         searching -> "← Produkty"
         selectedCat == "★" -> "← Lubię"
+        selectedCat == "🚫" -> "← Nie jem"
         selectedCat != null -> "← $selectedCat"
         else -> "← Produkty"
     }
@@ -141,6 +146,7 @@ fun ProductsScreen(app: DietetykApp, onBack: () -> Unit) {
                 // 2) Poziom kategorii → lista folderów (ikona kategorii + nazwa + licznik).
                 selectedCat == null -> {
                     if (favCount > 0) item { CategoryFolder("❤️", "Lubię", favCount) { selectedCat = "★" } }
+                    if (avoidCount > 0) item { CategoryFolder("🚫", "Nie jem", avoidCount) { selectedCat = "🚫" } }
                     categories.forEach { (cat, list) ->
                         item { CategoryFolder(catEmoji(cat), cat, list.size) { selectedCat = cat } }
                     }
@@ -148,7 +154,11 @@ fun ProductsScreen(app: DietetykApp, onBack: () -> Unit) {
                 }
                 // 3) Wewnątrz kategorii → produkty tej kategorii (obecny styl wierszy).
                 else -> {
-                    val list = if (selectedCat == "★") all.filter { it.preference == Pref.PREFER } else (categories[selectedCat] ?: emptyList())
+                    val list = when (selectedCat) {
+                        "★" -> all.filter { it.preference == Pref.PREFER }
+                        "🚫" -> all.filter { it.preference == Pref.AVOID }
+                        else -> categories[selectedCat] ?: emptyList()
+                    }
                     items(list, key = { it.id }) { p -> ProductRow(p, onTap = { detail = p }, onStar = { toggleStar(p) }) }
                     if (list.isEmpty()) item { EmptyState(false, "") { showAdd = true } }
                 }
@@ -217,7 +227,9 @@ private fun ProductRow(p: FoodProductEntity, onTap: () -> Unit, onStar: () -> Un
         ) { Text(productEmoji(p.name, p.category), fontSize = 22.sp) }
         Column(Modifier.weight(1f).padding(start = 12.dp)) {
             Text(p.name, color = Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-            Text("${p.kcal} kcal · B ${fmt(p.proteinG)} · W ${fmt(p.carbsG)} · T ${fmt(p.fatG)} /100g", color = Palette.Muted, fontSize = 12.sp, maxLines = 1)
+            val subtitle = if (p.source == "stub") "nie jem — dodane z rozmowy"
+                else "${p.kcal} kcal · B ${fmt(p.proteinG)} · W ${fmt(p.carbsG)} · T ${fmt(p.fatG)} /100g"
+            Text(subtitle, color = Palette.Muted, fontSize = 12.sp, maxLines = 1)
         }
         // Smak: 🤍 obojętne → ❤️ lubię → 🚫 nie jem (tap cykluje). Jedno źródło prawdy o preferencji.
         Text(

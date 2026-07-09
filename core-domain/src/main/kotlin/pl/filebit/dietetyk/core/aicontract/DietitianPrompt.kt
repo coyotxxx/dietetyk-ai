@@ -1,6 +1,8 @@
 package pl.filebit.dietetyk.core.aicontract
 
 import pl.filebit.dietetyk.core.calc.TdeeSource
+import pl.filebit.dietetyk.core.model.DietPreference
+import pl.filebit.dietetyk.core.model.VarietyMode
 
 /**
  * Renderery promptu dietetyka-AI. Czyste funkcje (testowalne) — zamieniają [DietitianContext] na tekst.
@@ -95,6 +97,15 @@ object DietitianPrompt {
         if (ctx.avoidedProducts.isNotEmpty()) {
             appendLine("Produkty NIELUBIANE (🚫) — użytkownik ICH NIE JE. NIGDY nie planuj ich ani nie proponuj (twardy zakaz, walidator i tak odrzuci): ${ctx.avoidedProducts.joinToString(", ")}.")
         }
+        if (p.allergens.isNotEmpty()) {
+            appendLine("⚠️ ALERGIE/NIETOLERANCJE (TWARDE, bezpieczeństwo) — NIGDY nie planuj składników z tych grup; walidator planu odrzuci każdy plan, który je zawiera: ${p.allergens.joinToString(", ")}.")
+        }
+        if (p.dietType != DietPreference.STANDARD) {
+            appendLine("Typ diety (twardy): ${p.dietType} — dobieraj produkty zgodnie z nim.")
+        }
+        appendLine("Kadencja planu: " + if (p.varietyMode == VarietyMode.SAME_DAILY)
+            "SAME_DAILY — user woli jeść CODZIENNIE PODOBNIE. Ułóż JEDEN dobry dzień i wywołaj save_diet_plan RAZ (bez dayOfWeek); silnik sam skopiuje go na cały tydzień. Nie rób 7 wywołań."
+            else "VARIED — user chce różnorodności; różnicuj posiłki między dniami tygodnia (7 wywołań save_diet_plan z dayOfWeek).")
 
         // Cel / kontrakt
         ctx.currentGoal?.let { g ->
@@ -132,10 +143,13 @@ object DietitianPrompt {
             append("nie przeskakuj kroków, nie pytaj o kilka rzeczy naraz:\n")
             append("  1) Imię (powitaj ciepło). 2) CEL (schudnąć/masa/zdrowie/lepsze nawyki). ")
             append("3) Podstawy: płeć, wiek, wzrost. 4) Waga teraz i docelowa. 5) Aktywność/tryb życia i treningi/tydzień. ")
-            append("6) Alergie/nietolerancje ORAZ SMAKI — zapytaj wprost: co LUBI, a czego NIE JE / nie znosi. ")
-            append("Dla KAŻDEGO wymienionego produktu wywołaj set_food_preference (PREFER lub AVOID). ")
-            append("To najważniejsze dla trzymania diety — plan ma być ze zdrowych rzeczy, KTÓRE LUBI, i NIGDY z tych, których nie je. ")
-            append("7) Liczba posiłków dziennie. ")
+            append("6) BEZPIECZEŃSTWO NAJPIERW: alergie/nietolerancje ORAZ typ diety (wegetarianizm/weganizm/keto itp.). ")
+            append("Każdą alergię/nietolerancję zapisz przez save_profile pole `allergens` (rozdziel średnikiem), a typ diety przez `dietType` — to TWARDE, egzekwowane bezwzględnie w planie. ")
+            append("Potem SMAKI, z ASYMETRIĄ: najpierw dopytaj CZEGO NIE JE / nie znosi (to ważniejsze — nielubiane są twardo blokowane; celuj w co najmniej 3 rzeczy), potem co LUBI (to miękka preferencja). ")
+            append("Dla KAŻDEGO wymienionego produktu wywołaj set_food_preference (AVOID gdy nie je, PREFER gdy lubi). ")
+            append("Zaproponuj też skrót wizualny: dołącz akcję `[[akcje: Otwórz bazę produktów | Powiem tutaj]]` — po kliknięciu user otworzy bazę produktów i sam pooznacza ❤️/🚫 (a czego brak — zeskanuje kodem kreskowym). ")
+            append("To najważniejsze dla trzymania diety — plan ma być ze zdrowych rzeczy, KTÓRE LUBI, i NIGDY z tych, których nie je/nie może. ")
+            append("7) Liczba posiłków dziennie ORAZ KADENCJA: zapytaj, czy woli jeść codziennie podobnie (prościej, mniej decyzji, łatwiejsze zakupy) czy różnorodnie — zapisz przez save_profile pole `varietyMode` (SAME_DAILY lub VARIED); dołącz `[[akcje: Codziennie podobnie | Różnorodnie]]`. ")
             append("8) SPRZĘT KUCHENNY (opcjonalny): zapytaj co ma — Air Fryer / Thermomix / tylko kuchenka; ")
             append("zapisz przez save_profile pole `equipment` (CSV: airfryer,thermomix). 9) BADANIA KRWI (opcjonalne): ")
             append("zaproponuj wysłanie zdjęcia wyników badań (odczytasz je) albo pominięcie — nie naciskaj.\n")

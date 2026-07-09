@@ -175,8 +175,11 @@ internal class ChatViewModel(private val app: DietetykApp) : ViewModel() {
     }
 }
 
+/** Etykieta akcji-mostu: gdy AI ją zaproponuje, kliknięcie OTWIERA bazę produktów zamiast wysyłać tekst. */
+private const val OPEN_PRODUCTS_ACTION = "Otwórz bazę produktów"
+
 @Composable
-fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier) {
+fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier, onBrowseProducts: () -> Unit = {}) {
     var apiKey by remember { mutableStateOf(app.settings.apiKey) }
     if (apiKey.isBlank()) {
         ApiKeyGate(onSaved = { app.settings.apiKey = it; apiKey = it })
@@ -186,6 +189,11 @@ fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val vm: ChatViewModel = viewModel { ChatViewModel(app) }
     var input by remember { mutableStateOf("") }
+    // Akcja z bąbelka/podpowiedzi: sentinel „Otwórz bazę produktów" nawiguje do bazy (most z KROKU 6),
+    // każda inna akcja to zwykła szybka odpowiedź wysyłana do dietetyka.
+    val onAction: (String) -> Unit = { a ->
+        if (a.equals(OPEN_PRODUCTS_ACTION, ignoreCase = true)) onBrowseProducts() else vm.send(a, apiKey)
+    }
     var photoUri by remember { mutableStateOf<android.net.Uri?>(null) }
 
     // Automatyczne wysłanie wiadomości/zdjęcia + reset po „Wyczyść rozmowę" (z Profilu).
@@ -240,7 +248,7 @@ fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier) {
             if (count > 0) listState.scrollToItem(count - 1)
         }
         LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(vm.messages) { msg -> MessageItem(msg, vm.sending) { vm.send(it, apiKey) } }
+            items(vm.messages) { msg -> MessageItem(msg, vm.sending, onAction) }
             if (vm.sending) item { Text("Dietetyk pisze…", color = Palette.Green, fontSize = 13.sp) }
         }
         // Podpowiedzi startowe — pokazują, co dietetyk potrafi (tylko w aktywnym użyciu, nie w wywiadzie,

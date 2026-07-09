@@ -100,6 +100,36 @@ class PlanValidatorTest {
         assertFalse("deser NIE może być fałszywie odrzucony przez AVOID=ser", r.errors.any { it.code == "avoided_product" })
     }
 
+    // === STUB (zaślepka bez makr) — backstop bezpieczeństwa: nigdy nie może być składnikiem ===
+
+    @Test
+    fun `skladnik-zaslepka (stub) hard-odrzuca plan`() {
+        val meal = AiMealRecipe("Coś", 300, 10, listOf(
+            AiRecipeIngredient("Bakłażan", 100), AiRecipeIngredient("Pierś z kurczaka", 150)))
+        val r = PlanValidator.validate(AiDayPlan(listOf(meal)),
+            ctx(enforceKcal = false, enforceMacros = false).copy(stubNorms = setOf("baklazan")))
+        assertFalse(r.isValid)
+        assertTrue(r.errors.any { it.code == "stub_ingredient" })
+    }
+
+    @Test
+    fun `regresja - stub baklazan NIE odrzuca innego produktu`() {
+        val r = PlanValidator.validate(AiDayPlan(listOf(goodMeal)),
+            ctx(enforceKcal = false, enforceMacros = false).copy(stubNorms = setOf("baklazan")))
+        assertFalse("kurczak+ryż nie mogą być odrzucone przez stub=baklazan", r.errors.any { it.code == "stub_ingredient" })
+    }
+
+    // === RÓŻNORODNOŚĆ DNIA — miękki próg (WARNING), nie blokuje planu ===
+
+    @Test
+    fun `niska roznorodnosc dnia to ostrzezenie, nie blad`() {
+        // goodMeal = 2 produkty < próg 6
+        val r = PlanValidator.validate(AiDayPlan(listOf(goodMeal)),
+            ctx(enforceKcal = false, enforceMacros = false).copy(minUniqueProductsPerDay = 6))
+        assertTrue(r.warnings.any { it.code == "low_variety_day" })
+        assertTrue("różnorodność to WARNING, nie ERROR", r.errors.none { it.code == "low_variety_day" })
+    }
+
     @Test
     fun `posilek zbyt tlusty (ponad 55 proc kcal) to blad`() {
         val meal = AiMealRecipe("Sama oliwa", 884, 1, listOf(AiRecipeIngredient("Oliwa z oliwek", 100)))

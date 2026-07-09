@@ -17,7 +17,7 @@ import java.util.zip.ZipOutputStream
  */
 object Backup {
 
-    const val DB_VERSION = 16
+    const val DB_VERSION = 17
     private const val BACKUP_VERSION = 1
     private const val PREFS_NAME = "dietetyk_settings"
     private const val API_KEY = "claude_api_key"

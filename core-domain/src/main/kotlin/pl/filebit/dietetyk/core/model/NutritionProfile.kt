@@ -25,6 +25,17 @@ data class NutritionProfile(
     val goalWeightKg: Double? = null,
     /** Preferowana liczba posiłków dziennie (2–8; null = domyślne). */
     val mealsPerDay: Int? = null,
-    /** Alergie/nietolerancje/preferencje (krótki tekst zebrany przez AI). */
-    val dietaryPrefs: String? = null
+    /** Alergie/nietolerancje/preferencje (krótki tekst zebrany przez AI) — MIĘKKI kontekst dla promptu. */
+    val dietaryPrefs: String? = null,
+    /**
+     * Alergie/nietolerancje STRUKTURALNIE (kanoniczne tokeny: „laktoza", „gluten", „orzechy", „jaja",
+     * „ryby", „owoce_morza", „soja", „sezam" lub wolny wyraz). TWARDE źródło bezpieczeństwa — z tego
+     * budujemy [pl.filebit.dietetyk.core.plan.DietConstraint.Allergy] egzekwowany w walidatorze planu.
+     * Osobno od [dietaryPrefs], bo alergenu NIE WOLNO zgubić w parsowaniu wolnego tekstu (apka rodzinna).
+     */
+    val allergens: List<String> = emptyList(),
+    /** Typ diety (wegetarianizm/weganizm/keto…) — TWARDE ograniczenie doboru produktów. */
+    val dietType: DietPreference = DietPreference.STANDARD,
+    /** Kadencja różnorodności planu (to samo codziennie vs różnicuj dni). */
+    val varietyMode: VarietyMode = VarietyMode.SAME_DAILY
 )

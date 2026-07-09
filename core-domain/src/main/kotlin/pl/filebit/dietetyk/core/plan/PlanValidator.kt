@@ -41,6 +41,13 @@ data class ValidationContext(
     /** Znormalizowane nazwy produktów NIELUBIANYCH (🚫 AVOID) — walidator hard-odrzuca plan, który ich używa.
      *  Dopasowanie PRECYZYJNE (całe słowo), bias na przepust: fałszywy reject gorszy niż przepust. */
     val avoidedNorms: Set<String> = emptySet(),
+    /** Znormalizowane nazwy STUBÓW (produkty-zaślepki bez makr, source="stub" — utworzone tylko po to,
+     *  by AVOID nie zginął). Backstop bezpieczeństwa (Fable, warstwa 2): stub NIGDY nie może być składnikiem
+     *  planu (0 kcal rozjechałoby makra) — niezależnie od tego, jak trafił. Dopasowanie jak przy [avoidedNorms]. */
+    val stubNorms: Set<String> = emptySet(),
+    /** Minimalna liczba UNIKALNYCH produktów w dniu (0 = wyłączone). Miękki próg (WARNING) przeciw monotonii —
+     *  szczególnie w trybie SAME_DAILY, gdzie jeden dzień powtarza się przez cały tydzień. */
+    val minUniqueProductsPerDay: Int = 0,
     val perSlotKcalTargets: List<Int> = emptyList(),
     val perSlotKcalTolerance: Double = 0.25,
     val enforceDailyKcal: Boolean = true,
@@ -98,6 +105,13 @@ object PlanValidator {
                     val hit = ctx.avoidedNorms.firstOrNull { av -> av.isNotBlank() && ingNorm.contains(" $av ") }
                     if (hit != null) errors += ValidationIssue(ValidationSeverity.ERROR, mIdx, "avoided_product",
                         "Posiłek '${meal.name}' używa '${ing.productName}', którego użytkownik NIE JE (🚫). Zastąp innym produktem.")
+                }
+                // STUB (zaślepka bez makr) NIGDY nie może być składnikiem — backstop niezależny od avoidedNorms.
+                if (ctx.stubNorms.isNotEmpty()) {
+                    val ingNorm = " ${normalizeName(ing.productName)} "
+                    val hit = ctx.stubNorms.firstOrNull { s -> s.isNotBlank() && ingNorm.contains(" $s ") }
+                    if (hit != null) errors += ValidationIssue(ValidationSeverity.ERROR, mIdx, "stub_ingredient",
+                        "Posiłek '${meal.name}' używa '${ing.productName}' — to produkt bez wartości odżywczych (zaślepka). Użyj realnego produktu z bazy.")
                 }
                 if (ing.grams < 5 || ing.grams > 1000) {
                     warnings += ValidationIssue(ValidationSeverity.WARNING, mIdx, "grams_out_of_range",
@@ -220,6 +234,15 @@ object PlanValidator {
             }
             if (dinnerCarbs > ctx.lowCarbDinnerMaxG) warnings += ValidationIssue(ValidationSeverity.WARNING, plan.meals.lastIndex, "dinner_high_carb",
                 "Kolacja '${dinner.name}': ${dinnerCarbs.toInt()}g węgli (zalecane <${ctx.lowCarbDinnerMaxG}g).")
+        }
+
+        // Różnorodność dnia (miękko) — przeciw monotonii, ważne zwłaszcza w SAME_DAILY (dzień × 7).
+        if (ctx.minUniqueProductsPerDay > 0) {
+            val uniqueCount = productMatches.values.filterNotNull().map { it.name.lowercase() }.distinct().size
+            if (uniqueCount in 1 until ctx.minUniqueProductsPerDay) {
+                warnings += ValidationIssue(ValidationSeverity.WARNING, null, "low_variety_day",
+                    "Dzień ma tylko $uniqueCount różnych produktów (zalecane ≥${ctx.minUniqueProductsPerDay}) — dołóż urozmaicenia dla lepszej mikroskładnikowej pokrycia.")
+            }
         }
 
         return ValidationResult(

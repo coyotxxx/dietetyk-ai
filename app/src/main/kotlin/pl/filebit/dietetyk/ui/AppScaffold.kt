@@ -79,7 +79,7 @@ fun AppScaffold(app: DietetykApp) {
                 else -> when (tab) {
                     Tab.DZIS -> TodayScreen(app, onBell = { showNotifs = true }, onGoToChat = { tab = Tab.DIETETYK }, onBrowseProducts = { showProducts = true })
                     Tab.PLAN -> PlanScreen(app, onGoToChat = { tab = Tab.DIETETYK })
-                    Tab.DIETETYK -> ChatScreen(app, Modifier.fillMaxSize())
+                    Tab.DIETETYK -> ChatScreen(app, Modifier.fillMaxSize(), onBrowseProducts = { showProducts = true })
                     Tab.POSTEPY -> ProgressScreen(app, onGoToChat = { tab = Tab.DIETETYK })
                     Tab.PROFIL -> ProfileScreen(app, onBrowseProducts = { showProducts = true }, onOpenBackup = { showBackup = true })
                     null -> {}

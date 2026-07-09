@@ -117,7 +117,12 @@ class DietToolHandler(
             paceKgPerWeek = p.double("paceKgPerWeek") ?: 0.5,
             goalWeightKg = p.double("goalWeightKg") ?: existing?.goalWeightKg,
             mealsPerDay = p.int("mealsPerDay") ?: existing?.mealsPerDay,
-            dietaryPrefs = p.string("preferences") ?: existing?.dietaryPrefs
+            dietaryPrefs = p.string("preferences") ?: existing?.dietaryPrefs,
+            // Alergie STRUKTURALNIE (twarde bezpieczeństwo) — osobno od wolnego `preferences`.
+            allergens = p.string("allergens")?.split(Regex("[;,]"))?.map { it.trim() }?.filter { it.isNotEmpty() }
+                ?: existing?.allergens ?: emptyList(),
+            dietType = enumOr(p.string("dietType"), existing?.dietType ?: pl.filebit.dietetyk.core.model.DietPreference.STANDARD),
+            varietyMode = enumOr(p.string("varietyMode"), existing?.varietyMode ?: pl.filebit.dietetyk.core.model.VarietyMode.SAME_DAILY)
         )
         app.profileRepo.save(profile, now)
         // Pierwsza realna kopia zapasowa od razu po utworzeniu profilu (auto-worker startuje dopiero za dobę).
@@ -146,32 +151,49 @@ class DietToolHandler(
 
     private suspend fun setFoodPreference(input: JsonObject): ToolResult {
         val productName = input.string("product") ?: return ToolResult("Podaj produkt (product).", isError = true)
+        // Default NIE jest „PREFER" — nieznany/literówkowy string to BŁĄD, nie ciche „lubię".
         val pref = when (input.string("preference")?.uppercase()) {
+            "PREFER" -> pl.filebit.dietetyk.data.db.Pref.PREFER
             "AVOID" -> pl.filebit.dietetyk.data.db.Pref.AVOID
             "NEUTRAL" -> pl.filebit.dietetyk.data.db.Pref.NEUTRAL
-            else -> pl.filebit.dietetyk.data.db.Pref.PREFER
+            else -> return ToolResult("Nieznana preferencja. Użyj PREFER, AVOID lub NEUTRAL.", isError = true)
         }
         val norm = FoodProductSeed.normalize(productName)
         val dao = app.database.foodProductDao()
-        val hits = dao.search(norm)
-        val target = hits.firstOrNull { it.nameNorm == norm } ?: hits.firstOrNull()
+        // Dopasowanie TYLKO po dokładnej znormalizowanej nazwie — zero zgadywania (dawniej `firstOrNull()`
+        // przypinał AVOID do przypadkowego wyniku substring-search, np. „pomidor" → „pomidory suszone").
+        val target = dao.search(norm).firstOrNull { it.nameNorm == norm }
         val label = when (pref) {
             pl.filebit.dietetyk.data.db.Pref.PREFER -> "lubiany (❤️ preferuję w planach)"
             pl.filebit.dietetyk.data.db.Pref.AVOID -> "nie jadany (🚫 nie zaplanuję)"
             else -> "obojętny"
         }
-        return if (target != null) {
+        if (target != null) {
             dao.setPreference(target.id, pref)
-            ToolResult("Zapisane: ${target.name} = $label.")
-        } else {
-            ToolResult("Zanotowałem: $productName = $label. Nie mam go jeszcze w bazie — jeśli chcesz go w planach, dodaj przez add_missing_product.")
+            return ToolResult("Zapisane: ${target.name} = $label.")
+        }
+        // Brak w bazie:
+        return when (pref) {
+            // AVOID NIE MOŻE zginąć (bezpieczeństwo smaku) → utwórz zaślepkę (stub bez makr), którą zna
+            // walidator planu. Stub jest widoczny tylko jako „nie jem" i nigdy nie trafi do planu jako składnik.
+            pl.filebit.dietetyk.data.db.Pref.AVOID -> {
+                dao.insert(FoodProductEntity(
+                    name = productName.trim(), nameNorm = norm,
+                    kcal = 0, proteinG = 0.0, carbsG = 0.0, fatG = 0.0,
+                    category = "Nie jem", source = "stub", preference = pl.filebit.dietetyk.data.db.Pref.AVOID
+                ))
+                ToolResult("Zapisane: ${productName.trim()} = $label (dodane do listy nie-jem).")
+            }
+            // PREFER/NEUTRAL bez wartości odżywczych są bezużyteczne dla planu — poproś o realny produkt.
+            else -> ToolResult("Zanotowałem: $productName = $label. Nie mam go w bazie — jeśli ma trafiać do planów, dodaj przez add_missing_product (pobierze makro).")
         }
     }
 
     private suspend fun searchProducts(input: JsonObject): ToolResult {
         val query = input.string("query")?.takeIf { it.isNotBlank() }
             ?: return ToolResult("Podaj nazwę produktu (query).", isError = true)
-        val hits = app.database.foodProductDao().search(FoodProductSeed.normalize(query))
+        // Wyklucz zaślepki (stub) — to tylko markery „nie jem" bez makr, NIE kandydaci na składnik planu.
+        val hits = app.database.foodProductDao().search(FoodProductSeed.normalize(query)).filter { it.source != "stub" }
         if (hits.isEmpty()) return ToolResult("Brak w bazie produktu: $query. Wartości oszacuj ostrożnie lub dodaj przez add_missing_product.")
         val lines = hits.joinToString("\n") { p ->
             "• ${p.name} (na 100g surowego): ${p.kcal} kcal, B ${p.proteinG}g, W ${p.carbsG}g, T ${p.fatG}g"
@@ -207,9 +229,9 @@ class DietToolHandler(
         val dow = (input.int("dayOfWeek")?.coerceIn(1, 7)) ?: pl.filebit.dietetyk.ui.PlanData.todayDow()
         val weeklyMode = input.int("dayOfWeek") != null
 
-        val goal = app.profileRepo.get()?.let {
-            GoalPipeline.compute(it, latestMeasuredWeightKg = app.weightRepo.latest()?.weightKg)
-        } ?: return ToolResult("Brak profilu/celu — najpierw calculate_targets.", isError = true)
+        val profile = app.profileRepo.get()
+            ?: return ToolResult("Brak profilu/celu — najpierw calculate_targets.", isError = true)
+        val goal = GoalPipeline.compute(profile, latestMeasuredWeightKg = app.weightRepo.latest()?.weightKg)
 
         // Parsuj posiłki ze strukturalnymi składnikami
         data class ParsedMeal(val name: String, val time: String, val recipe: AiMealRecipe)
@@ -234,34 +256,55 @@ class DietToolHandler(
         // Nielubiane (🚫) → twardy guardrail walidatora: plan NIGDY nie użyje tych produktów.
         val avoidedNorms = entities.filter { it.preference == pl.filebit.dietetyk.data.db.Pref.AVOID }
             .map { FoodProductSeed.normalize(it.name) }.toSet()
+        // Zaślepki (stub) → backstop: nigdy nie mogą być składnikiem planu (0 makr rozjechałoby cel).
+        val stubNorms = entities.filter { it.source == "stub" }
+            .map { FoodProductSeed.normalize(it.name) }.toSet()
+        // TWARDE ograniczenia diety z profilu (alergie/nietolerancje/typ diety) → walidator hard-odrzuca.
+        // BEZPIECZEŃSTWO: alergen z wywiadu NIGDY nie może przejść do planu (apka rodzinna, dziecko z alergią).
+        val constraints = pl.filebit.dietetyk.core.plan.ConstraintResolver.resolve(
+            gender = profile.gender,
+            prefs = pl.filebit.dietetyk.core.plan.DietPreferences(
+                allergies = profile.allergens,
+                dietPreference = profile.dietType
+            ),
+            clinical = ClinicalContext.NONE
+        )
 
         val ctx = ValidationContext(
             expectedMealsCount = plan.meals.size,
             targetKcal = goal.kcal, targetProteinG = goal.proteinG,
             targetCarbsG = goal.carbsG, targetFatG = goal.fatG,
             perMealProteinMinG = 0, maxCookingMinutesPerMeal = 240,
-            productsByName = byName, avoidedNorms = avoidedNorms
+            productsByName = byName, avoidedNorms = avoidedNorms,
+            stubNorms = stubNorms, constraints = constraints,
+            minUniqueProductsPerDay = if (profile.varietyMode == pl.filebit.dietetyk.core.model.VarietyMode.SAME_DAILY) 6 else 5
         )
         val result = PlanValidator.validate(plan, ctx)
+        // TWARDE BEZPIECZEŃSTWO/SMAK: błędy, których NIGDY nie wolno zapisać — niezależnie od trybu i prób.
+        // Alergie (hard_constraint), produkty „nie jem" (avoided), zaślepki (stub), próg bezpieczny kcal,
+        // keto, białko jaja. Fallback-zapis dotyczy TYLKO matematyki celu (kcal/makro), nie tych zasad.
+        val blockingCodes = setOf(
+            "avoided_product", "stub_ingredient", "hard_constraint_violation",
+            "safety_kcal_too_low", "keto_carbs_exceeded", "egg_white_split_not_allowed"
+        )
+        val blocking = result.errors.filter { it.code in blockingCodes }
+        if (blocking.isNotEmpty()) {
+            planRetries = 0
+            val msgs = blocking.map { it.message }.distinct().take(6).joinToString(" ")
+            return ToolResult(
+                "NIE ZAPISANO planu — narusza twarde zasady (alergie / nie-jem / bezpieczeństwo): $msgs " +
+                    "Ułóż plan ponownie CAŁKOWICIE bez tych produktów. Jeśli przez wykluczenia nie da się trafić w cel, " +
+                    "powiedz użytkownikowi KONKRETNIE, czego nie możesz obejść, i zapytaj, co dopuścić — nie zapisuj kompromisu, nie próbuj w kółko.",
+                isError = true
+            )
+        }
         // W trybie TYGODNIOWYM nie retry'ujemy (7 dni × 2 próby > limit tur → korupcja) — fallback-zapis
-        // z ostrzeżeniem. W trybie jednodniowym: do 2 prób poprawy, potem fallback.
+        // z ostrzeżeniem. W trybie jednodniowym: do 2 prób poprawy matematyki celu, potem fallback.
         if (!result.isValid && !weeklyMode && planRetries < 2) {
             planRetries++
             return ToolResult(PlanValidator.buildRetryFeedback(result), isError = true)
         }
         planRetries = 0
-        // GRACEFUL FALLBACK smaku: NIGDY nie zapisuj planu z produktem AVOID (obietnica: nie planuję czego nie jesz).
-        // Po wyczerpaniu prób → rozmowa, nie zapis kompromisu. Rozróżnij przyczynę (smak) od matematyki celu.
-        val avoidHits = result.errors.filter { it.code == "avoided_product" }
-            .mapNotNull { Regex("używa '([^']+)'").find(it.message)?.groupValues?.get(1) }.distinct()
-        if (avoidHits.isNotEmpty()) {
-            return ToolResult(
-                "NIE ZAPISANO planu — zawiera produkty, których użytkownik nie je (🚫): ${avoidHits.joinToString(", ")}. " +
-                    "Za dużo wykluczeń, żeby ułożyć sensowny plan pod cel. Powiedz użytkownikowi KONKRETNIE, czego nie możesz obejść " +
-                    "(te produkty), i zapytaj, czy dopuści któryś z nich — dopiero po jego zgodzie ułóż plan ponownie. Nie układaj w kółko.",
-                isError = true
-            )
-        }
 
         // Per-posiłek przeliczone z bazy (do wyświetlenia na Dziś/Plan)
         val mealsJson = buildJsonArray {
@@ -290,13 +333,20 @@ class DietToolHandler(
         }
         // Zapis do dnia w mapie tygodnia (zachowuje pozostałe dni). Stary format {meals} migruje się sam.
         val existing = app.database.planDao().get()?.planJson ?: "{}"
-        val newJson = pl.filebit.dietetyk.ui.PlanData.setDayMeals(existing, dow, mealsJson, goal.kcal)
+        var newJson = pl.filebit.dietetyk.ui.PlanData.setDayMeals(existing, dow, mealsJson, goal.kcal)
+        // KADENCJA: przy SAME_DAILY i pojedynczym dniu (bez dayOfWeek) — ten sam dzień na cały tydzień.
+        // Dzięki temu AI woła save_diet_plan RAZ, a user dostaje pełny tydzień „to samo codziennie".
+        val replicated = !weeklyMode && profile.varietyMode == pl.filebit.dietetyk.core.model.VarietyMode.SAME_DAILY
+        if (replicated) {
+            for (d in 1..7) if (d != dow) newJson = pl.filebit.dietetyk.ui.PlanData.setDayMeals(newJson, d, mealsJson, goal.kcal)
+        }
         app.database.planDao().upsert(PlanEntity(planJson = newJson, targetKcal = goal.kcal, updatedAt = now, dirty = true))
 
         val ct = result.correctedTotal
         val warn = if (result.warnings.isNotEmpty()) " Uwagi: " + result.warnings.take(3).joinToString("; ") { it.message } else ""
-        val dayName = pl.filebit.dietetyk.ui.DOW_LONG[dow - 1]
-        return ToolResult("Zapisałem plan na $dayName (przeliczony z bazy): ${plan.meals.size} posiłków, ${ct.totalKcal} kcal — B ${ct.totalProteinG}g / W ${ct.totalCarbsG}g / T ${ct.totalFatG}g (cel ${goal.kcal} kcal).$warn")
+        val scope = if (replicated) "na cały tydzień (ten sam dzień codziennie — user woli powtarzalność)"
+            else "na ${pl.filebit.dietetyk.ui.DOW_LONG[dow - 1]}"
+        return ToolResult("Zapisałem plan $scope (przeliczony z bazy): ${plan.meals.size} posiłków, ${ct.totalKcal} kcal — B ${ct.totalProteinG}g / W ${ct.totalCarbsG}g / T ${ct.totalFatG}g (cel ${goal.kcal} kcal).$warn")
     }
 
     /** Dopasowanie nazwy do produktu bazy: exact → substring (spójne z PlanValidator). */
@@ -333,6 +383,9 @@ class DietToolHandler(
                 sb.append("• $name — $amount\n")
             }
         }
+        // #5: naturalny moment na skaner — user i tak stoi w sklepie z telefonem (zerowy koszt).
+        sb.append("\n\nWSKAZÓWKA DLA CIEBIE (przekaż użytkownikowi naturalnie, nie dosłownie): przy zakupach może zeskanować kodem ")
+        sb.append("kreskowym produkty, których nie ma w bazie — trafią do jego planów i list na przyszłość.")
         return ToolResult(sb.toString().trimEnd())
     }
 

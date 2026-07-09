@@ -26,6 +26,12 @@ data class ProfileEntity(
     val goalWeightKg: Double? = null,
     val mealsPerDay: Int? = null,
     val dietaryPrefs: String? = null,
+    /** Alergie/nietolerancje strukturalnie — kanoniczne tokeny rozdzielone „;" (twarde źródło bezpieczeństwa). */
+    val allergens: String? = null,
+    /** Typ diety (nazwa enuma [pl.filebit.dietetyk.core.model.DietPreference]); null = STANDARD. */
+    val dietType: String? = null,
+    /** Kadencja różnorodności (nazwa enuma [pl.filebit.dietetyk.core.model.VarietyMode]); domyślnie SAME_DAILY. */
+    val varietyMode: String = "SAME_DAILY",
     val updatedAt: Long = 0,
     val dirty: Boolean = false
 )

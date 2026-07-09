@@ -46,7 +46,10 @@ object AiToolCatalog {
                 AiToolParam("paceKgPerWeek", "double", false, "docelowe tempo zmiany masy w kg/tydzień, wartość dodatnia (np. 0.5)"),
                 AiToolParam("goalWeightKg", "double", false, "docelowa waga w kg (do paska postępu w profilu)"),
                 AiToolParam("mealsPerDay", "int", false, "preferowana liczba posiłków dziennie (2-8)"),
-                AiToolParam("preferences", "string", false, "alergie/nietolerancje/preferencje krótko (np. 'laktoza; bez wieprzowiny')"),
+                AiToolParam("preferences", "string", false, "MIĘKKIE upodobania/uwagi krótko (np. 'lubi kuchnię włoską, mało czasu rano'). To NIE alergie."),
+                AiToolParam("allergens", "string", false, "ALERGIE/NIETOLERANCJE oddzielone średnikiem — TWARDE, egzekwowane w planie bezwzględnie (np. 'orzechy; laktoza; gluten'). Podawaj proste kanoniczne słowa. Zawsze zapisz tu każdą alergię/nietolerancję, którą user wymieni."),
+                AiToolParam("dietType", "enum", false, "typ diety: STANDARD | VEGETARIAN | VEGAN | PESCATARIAN | KETO | MEDITERRANEAN (twarde ograniczenie doboru produktów)"),
+                AiToolParam("varietyMode", "enum", false, "kadencja różnorodności: SAME_DAILY (user woli jeść codziennie podobnie — silnik ułoży jeden dzień na cały tydzień) | VARIED (chce różnorodności między dniami)"),
                 AiToolParam("equipment", "string", false, "sprzęt kuchenny użytkownika jako CSV z {airfryer,thermomix} — np. 'airfryer,thermomix' albo 'airfryer'. Puste = tylko kuchenka/piekarnik. Filtruje warianty przepisów.")
             ),
             mutating = true
@@ -56,7 +59,7 @@ object AiToolCatalog {
             readsData = true, emitsNumbers = true
         ),
         AiToolSpec(
-            "save_diet_plan", "Zapisz plan JEDNEGO dnia. Składniki podaj STRUKTURALNIE (produkt+gramatura surowa) — silnik SAM przelicza kcal/makro z bazy produktów i sprawdza zgodność z celem. Używaj nazw produktów z bazy (search_products). Plan jest TYGODNIOWY: podaj `dayOfWeek` (1=Pn…7=Nd), by zapisać dany dzień; przy układaniu całego tygodnia wołaj to narzędzie RAZ NA DZIEŃ (7 wywołań) i RÓŻNICUJ posiłki między dniami (nie 7× to samo).",
+            "save_diet_plan", "Zapisz plan JEDNEGO dnia. Składniki podaj STRUKTURALNIE (produkt+gramatura surowa) — silnik SAM przelicza kcal/makro z bazy produktów i sprawdza zgodność z celem. Używaj nazw produktów z bazy (search_products). KADENCJA zależy od profilu (`varietyMode`): przy SAME_DAILY ułóż JEDEN dobry dzień i wywołaj to narzędzie RAZ, BEZ `dayOfWeek` — silnik sam skopiuje ten dzień na cały tydzień (user woli powtarzalność). Przy VARIED wołaj RAZ NA DZIEŃ z `dayOfWeek` 1-7 (7 wywołań) i RÓŻNICUJ posiłki między dniami (nie 7× to samo).",
             listOf(
                 AiToolParam("meals", "array", true,
                     "tablica posiłków; każdy: {\"name\":\"Owsianka z malinami\",\"timeHint\":\"7:30\",\"prepMinutes\":10,\"ingredients\":[{\"productName\":\"Płatki owsiane\",\"grams\":60},{\"productName\":\"Mleko 2%\",\"grams\":200},{\"productName\":\"Maliny\",\"grams\":100}]}"),
