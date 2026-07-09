@@ -32,4 +32,7 @@ interface WeightDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(sample: WeightEntity): Long
+
+    @Query("DELETE FROM weight_samples WHERE dateMs = :dateMs")
+    suspend fun deleteByDate(dateMs: Long)
 }

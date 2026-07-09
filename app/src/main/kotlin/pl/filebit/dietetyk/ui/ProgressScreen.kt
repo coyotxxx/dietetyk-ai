@@ -41,6 +41,7 @@ fun ProgressScreen(app: DietetykApp, onGoToChat: () -> Unit = {}) {
     var loaded by remember { mutableStateOf(false) }
     var reloadKey by remember { mutableStateOf(0) }
     var showSheet by remember { mutableStateOf(false) }
+    var pendingDelete by remember { mutableStateOf<WeightSample?>(null) }
     var range by remember { mutableStateOf(30) }
     var profile by remember { mutableStateOf<pl.filebit.dietetyk.core.model.NutritionProfile?>(null) }
     var visits by remember { mutableStateOf<List<pl.filebit.dietetyk.data.db.VisitEntity>>(emptyList()) }
@@ -64,6 +65,22 @@ fun ProgressScreen(app: DietetykApp, onGoToChat: () -> Unit = {}) {
                     showSheet = false
                     reloadKey++
                 }
+            }
+        )
+    }
+
+    pendingDelete?.let { s ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("Usunąć pomiar?") },
+            text = { Text("${dayLabel(s.dateMs)} — ${kgP(s.weightKg)} kg. Usunięcie poprawia trend, na którym opiera się Dietetyk.") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    scope.launch { app.weightRepo.delete(s); pendingDelete = null; reloadKey++ }
+                }) { Text("Usuń", color = Palette.Orange, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { pendingDelete = null }) { Text("Anuluj", color = Palette.Muted) }
             }
         )
     }
@@ -279,7 +296,13 @@ fun ProgressScreen(app: DietetykApp, onGoToChat: () -> Unit = {}) {
                 horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(dayLabel(s.dateMs), color = Palette.Muted, fontSize = 13.sp)
-                Text(kgP(s.weightKg) + " kg", color = Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Text(kgP(s.weightKg) + " kg", color = Palette.TextDark, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text("🗑", fontSize = 15.sp, modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { pendingDelete = s }
+                        .padding(horizontal = 6.dp, vertical = 2.dp))
+                }
             }
         }
     }

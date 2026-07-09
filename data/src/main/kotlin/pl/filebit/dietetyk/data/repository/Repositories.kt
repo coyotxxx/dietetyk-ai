@@ -24,4 +24,6 @@ class WeightRepository(private val dao: WeightDao) {
     suspend fun latest(): WeightSample? = dao.latest()?.toModel()
     suspend fun since(sinceMs: Long): List<WeightSample> = dao.since(sinceMs).map { it.toModel() }
     suspend fun add(sample: WeightSample, nowMs: Long): Long = dao.insert(sample.toEntity(nowMs))
+    /** Usuwa pomiar po jego znaczniku czasu (dateMs jest praktycznie unikalny — pełny timestamp zapisu). */
+    suspend fun delete(sample: WeightSample) = dao.deleteByDate(sample.dateMs)
 }
