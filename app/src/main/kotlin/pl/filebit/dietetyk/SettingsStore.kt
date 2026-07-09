@@ -97,6 +97,16 @@ class SettingsStore(context: Context) {
         get() = prefs.getBoolean("auto_backup_enabled", true)
         set(v) { prefs.edit().putBoolean("auto_backup_enabled", v).apply() }
 
+    /** Termin umówionej wizyty kontrolnej (epoch ms). 0 = brak. Ustawiany przez narzędzie schedule_checkin. */
+    var nextCheckinAt: Long
+        get() = prefs.getLong("next_checkin_at", 0L)
+        set(v) { prefs.edit().putLong("next_checkin_at", v).apply() }
+
+    /** Do kiedy cel jest świadomie zawieszony (epoch ms). 0 = brak. Ustawiany przez defer_goal — kod NIE karze w tym okresie. */
+    var goalDeferredUntil: Long
+        get() = prefs.getLong("goal_deferred_until", 0L)
+        set(v) { prefs.edit().putLong("goal_deferred_until", v).apply() }
+
     /** Zjedzone posiłki danego dnia (stary format, do migracji). */
     fun eatenMeals(dayKey: String): Set<String> = prefs.getStringSet("eaten_$dayKey", emptySet()) ?: emptySet()
 

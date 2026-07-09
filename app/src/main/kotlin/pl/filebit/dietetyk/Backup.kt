@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.core.content.FileProvider
-import androidx.sqlite.db.SimpleSQLiteQuery
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -32,20 +31,34 @@ object Backup {
 
     /** Zapisuje ZIP (manifest+db+prefs) do wskazanego pliku. Wspólny rdzeń eksportu i auto-kopii. */
     private fun writeBackupZip(context: Context, app: DietetykApp, out: File, includeApiKey: Boolean) {
-        runCatching { app.database.query(SimpleSQLiteQuery("PRAGMA wal_checkpoint(TRUNCATE)")).close() }
         val dbFile = context.getDatabasePath("dietetyk.db")
         require(dbFile.exists()) { "brak bazy" }
+        // Spójny snapshot: VACUUM INTO czyta AKTUALNY stan bazy (łącznie z WAL) i pisze czystą kopię —
+        // odporne na kontencję z aktywnymi czytnikami (Flow w Compose). checkpoint+copy potrafił zgubić
+        // najświeższe zapisy, gdy jakiś reader trzymał WAL. Kopiujemy snapshot, nie żywy plik.
+        val snapshot = File(context.cacheDir, "backup_snapshot_${System.currentTimeMillis()}.db")
+        snapshot.delete()
+        val escaped = snapshot.absolutePath.replace("'", "''")
+        // VACUUM INTO musi biec na ODDZIELNYM połączeniu — na połączeniu Room rzuca (VACUUM w transakcji /
+        // kontencja z aktywnymi Flow). Oddzielne połączenie widzi wszystkie zatwierdzone dane (łącznie z WAL).
+        android.database.sqlite.SQLiteDatabase.openDatabase(
+            dbFile.path, null, android.database.sqlite.SQLiteDatabase.OPEN_READWRITE
+        ).use { raw -> raw.execSQL("VACUUM INTO '$escaped'") }
         out.parentFile?.mkdirs()
-        ZipOutputStream(out.outputStream()).use { zos ->
-            val manifest = JSONObject().apply {
-                put("backupVersion", BACKUP_VERSION)
-                put("dbVersion", DB_VERSION)
-                put("appVersion", BuildConfig.VERSION_NAME)
-                put("createdAt", System.currentTimeMillis())
+        try {
+            ZipOutputStream(out.outputStream()).use { zos ->
+                val manifest = JSONObject().apply {
+                    put("backupVersion", BACKUP_VERSION)
+                    put("dbVersion", DB_VERSION)
+                    put("appVersion", BuildConfig.VERSION_NAME)
+                    put("createdAt", System.currentTimeMillis())
+                }
+                zos.putNextEntry(ZipEntry("manifest.json")); zos.write(manifest.toString().toByteArray()); zos.closeEntry()
+                zos.putNextEntry(ZipEntry("dietetyk.db")); snapshot.inputStream().use { it.copyTo(zos) }; zos.closeEntry()
+                zos.putNextEntry(ZipEntry("prefs.json")); zos.write(prefsToJson(context, includeApiKey).toString().toByteArray()); zos.closeEntry()
             }
-            zos.putNextEntry(ZipEntry("manifest.json")); zos.write(manifest.toString().toByteArray()); zos.closeEntry()
-            zos.putNextEntry(ZipEntry("dietetyk.db")); dbFile.inputStream().use { it.copyTo(zos) }; zos.closeEntry()
-            zos.putNextEntry(ZipEntry("prefs.json")); zos.write(prefsToJson(context, includeApiKey).toString().toByteArray()); zos.closeEntry()
+        } finally {
+            snapshot.delete()
         }
     }
 

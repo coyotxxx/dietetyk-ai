@@ -132,9 +132,22 @@ internal class ChatViewModel(private val app: DietetykApp) : ViewModel() {
         val userMsg = UiMsg(true, text); messages.add(userMsg); sending = true
         viewModelScope.launch {
             persist(userMsg)
-            val reply = runCatching { sendToDietitian(app, history, text, handler, apiKey) }.getOrElse { "Coś poszło nie tak: ${it.message}" }
+            val reply = runCatching { sendToDietitian(app, history, text, handler, apiKey) }.getOrElse { friendlyError(it) }
             val aiMsg = parseAiReply(reply); messages.add(aiMsg); persist(aiMsg); saveHistory()
             sending = false
+        }
+    }
+
+    /** Zamienia surowy wyjątek sieci/API na ludzki komunikat — technicznego stacktrace user nie powinien widzieć. */
+    private fun friendlyError(e: Throwable): String {
+        val msg = (e.message ?: "").lowercase()
+        val offline = e is java.io.IOException || "unable to resolve host" in msg || "no address associated" in msg ||
+            "timeout" in msg || "timed out" in msg || "failed to connect" in msg || "network" in msg
+        return if (offline) {
+            "Jestem chwilowo poza zasięgiem 🌐 — sprawdź połączenie z internetem i napisz jeszcze raz. " +
+                "Twój plan, posiłki i postępy działają też offline."
+        } else {
+            "Coś mi nie zadziałało po mojej stronie 😔 — spróbuj napisać jeszcze raz za chwilę."
         }
     }
 

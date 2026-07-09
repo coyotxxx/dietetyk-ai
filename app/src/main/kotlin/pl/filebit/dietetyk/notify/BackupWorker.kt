@@ -14,6 +14,9 @@ class BackupWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx
     override suspend fun doWork(): Result {
         val app = applicationContext as DietetykApp
         if (!app.settings.autoBackupEnabled) return Result.success()
+        // Nie rób kopii pustej bazy (worker potrafi odpalić przy 1. starcie, zanim powstanie profil) —
+        // inaczej „ostatnia kopia" nadpisuje się pustką i restore = utrata danych.
+        if (app.profileRepo.get() == null) return Result.success()
         Backup.writeLocalBackup(app, app)
         return Result.success()
     }

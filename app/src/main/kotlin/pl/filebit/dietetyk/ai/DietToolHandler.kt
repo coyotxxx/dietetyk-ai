@@ -59,6 +59,10 @@ class DietToolHandler(
             "add_missing_product" -> addMissingProduct(input)
             "set_food_preference" -> setFoodPreference(input)
             "remember_context" -> rememberContext(input, now)
+            "generate_shopping_list" -> generateShoppingList()
+            "propose_adjustment" -> proposeAdjustment(input, now)
+            "schedule_checkin" -> scheduleCheckin(input, now)
+            "defer_goal" -> deferGoal(input, now)
             else -> ToolResult("Narzędzie '$name' będzie dostępne wkrótce.")
         }
     }
@@ -116,6 +120,8 @@ class DietToolHandler(
             dietaryPrefs = p.string("preferences") ?: existing?.dietaryPrefs
         )
         app.profileRepo.save(profile, now)
+        // Pierwsza realna kopia zapasowa od razu po utworzeniu profilu (auto-worker startuje dopiero za dobę).
+        runCatching { pl.filebit.dietetyk.Backup.writeLocalBackup(app, app) }
         return ToolResult("Zapisałem profil.")
     }
 
@@ -297,6 +303,80 @@ class DietToolHandler(
     private fun resolve(name: String, byName: Map<String, FoodProductModel>): FoodProductModel? {
         val key = name.trim().lowercase()
         return byName[key] ?: byName.entries.firstOrNull { (k, _) -> k.contains(key) || key.contains(k) }?.value
+    }
+
+    /** Lista zakupów z aktualnego planu tygodnia — sumuje gramaturę per produkt, grupuje po kategorii. */
+    private suspend fun generateShoppingList(): ToolResult {
+        val planJson = app.database.planDao().get()?.planJson
+            ?: return ToolResult("Brak zapisanego planu — najpierw ułóż plan (save_diet_plan).", isError = true)
+        // produkt (nazwa) -> (kategoria, suma gramów)
+        val agg = LinkedHashMap<String, Pair<String, Int>>()
+        for (dow in 1..7) {
+            val meals = pl.filebit.dietetyk.ui.PlanData.mealsForDay(planJson, dow) ?: continue
+            meals.mapNotNull { it as? JsonObject }.forEach { m ->
+                (m["ings"] as? JsonArray)?.mapNotNull { it as? JsonObject }?.forEach { ing ->
+                    val name = ing.string("name") ?: return@forEach
+                    val grams = ing.int("grams") ?: 0
+                    val cat = ing.string("cat") ?: "Inne"
+                    val prev = agg[name]
+                    agg[name] = cat to ((prev?.second ?: 0) + grams)
+                }
+            }
+        }
+        if (agg.isEmpty()) return ToolResult("Plan nie ma jeszcze składników — ułóż dni tygodnia (save_diet_plan).", isError = true)
+        val byCat = agg.entries.groupBy({ it.value.first }, { it.key to it.value.second })
+        val sb = StringBuilder("Lista zakupów na tydzień (produkty surowe, zsumowane):\n")
+        byCat.toSortedMap().forEach { (cat, items) ->
+            sb.append("\n$cat:\n")
+            items.sortedByDescending { it.second }.forEach { (name, grams) ->
+                val amount = if (grams >= 1000) "%.1f kg".format(grams / 1000.0).replace('.', ',') else "$grams g"
+                sb.append("• $name — $amount\n")
+            }
+        }
+        return ToolResult(sb.toString().trimEnd())
+    }
+
+    /**
+     * Korekta celu KIERUNKIEM + SIŁĄ. Kod reguluje `paceKgPerWeek` (tempo zmiany masy), a GoalPipeline
+     * przelicza i CLAMPUJE kcal przez SafetyGuard — AI nigdy nie podaje surowej liczby kcal.
+     * increase = więcej kcal (mniejsze tempo), decrease = mniej kcal (większe tempo).
+     */
+    private suspend fun proposeAdjustment(input: JsonObject, now: Long): ToolResult {
+        val profile = app.profileRepo.get() ?: return ToolResult("Brak profilu — najpierw wywiad.", isError = true)
+        val weight = app.weightRepo.latest()?.weightKg
+        val before = GoalPipeline.compute(profile, latestMeasuredWeightKg = weight)
+        val dir = input.string("direction")?.lowercase()
+        if (dir != "increase" && dir != "decrease") return ToolResult("Podaj direction: increase lub decrease.", isError = true)
+        val step = when (input.string("magnitude")?.lowercase()) { "medium" -> 0.2; else -> 0.1 }
+        // increase kcal → wolniejsze tempo; decrease kcal → szybsze tempo. Clamp 0..MAX (SafetyGuard).
+        val maxPace = pl.filebit.dietetyk.core.safety.SafetyGuard.MAX_LOSS_KG_PER_WEEK
+        val delta = if (dir == "increase") -step else step
+        val newPace = (profile.paceKgPerWeek + delta).coerceIn(0.0, maxPace)
+        if (newPace == profile.paceKgPerWeek) {
+            return ToolResult("Tempo jest już na granicy bezpieczeństwa (${"%.1f".format(profile.paceKgPerWeek)} kg/tydz) — nie mogę skorygować dalej w tym kierunku. Zaproponuj inne rozwiązanie (np. diet break) albo zostaw jak jest.")
+        }
+        app.profileRepo.save(profile.copy(paceKgPerWeek = newPace), now)
+        val after = GoalPipeline.compute(profile.copy(paceKgPerWeek = newPace), latestMeasuredWeightKg = weight)
+        val diff = after.kcal - before.kcal
+        val sign = if (diff > 0) "+" else ""
+        val warn = if (after.safetyWarnings.isNotEmpty()) " (${after.safetyWarnings.first()})" else ""
+        return ToolResult("Skorygowałem cel: ${before.kcal} → ${after.kcal} kcal ($sign$diff), tempo ${"%.1f".format(newPace)} kg/tydz.$warn")
+    }
+
+    /** Umawia wizytę kontrolną na wskazany termin (za ile dni). Zapisuje termin — worker/UI go użyje. */
+    private suspend fun scheduleCheckin(input: JsonObject, now: Long): ToolResult {
+        val days = input.int("whenDays") ?: return ToolResult("Podaj za ile dni (whenDays).", isError = true)
+        val d = days.coerceIn(1, 90)
+        app.settings.nextCheckinAt = now + d * 86_400_000L
+        return ToolResult("Umówiłem wizytę kontrolną za $d dni.")
+    }
+
+    /** Świadome zawieszenie celu na jakiś czas — kod nie karze w tym okresie. Domyślnie 7 dni. */
+    private suspend fun deferGoal(input: JsonObject, now: Long): ToolResult {
+        val reason = input.string("reason") ?: "wsparcie/rozmowa"
+        app.settings.goalDeferredUntil = now + 7 * 86_400_000L
+        app.database.aiMemoryDao().insert(AiMemoryEntity(note = "Cel zawieszony: $reason", createdAt = now, updatedAt = now, dirty = true))
+        return ToolResult("Odłożyłem agendę celu na tydzień — bez presji. Skupiamy się na tym, czego teraz potrzebujesz.")
     }
 
     private suspend fun runCheckin(now: Long): ToolResult {
