@@ -282,12 +282,20 @@ private suspend fun sendToDietitian(
         "tough" -> "TON ROZMOWY: Bądź bezpośredni i wymagający — mów wprost, motywuj do dyscypliny i konsekwencji, bez owijania w bawełnę (ale z szacunkiem)."
         else -> "TON ROZMOWY: Bądź wyważony — konkretny i rzeczowy, ale ciepły i motywujący."
     }
-    // OVERRIDE kontekstowy (ochrona zaufania): ustawiony ton to BAZA, ale gdy user jest na dnie —
-    // przyznaje się do wpadki, ma zły dzień, jest zniechęcony — bądź wspierający i NIGDY nie dobijaj,
-    // niezależnie od ustawienia „wymagający". Wsparcie w trudnym momencie ważniejsze niż dyscyplina.
-    val toneOverride = "WAZNE: powyzszy ton to punkt wyjscia, nie sztywna regula. Czytaj stan uzytkownika — " +
-        "jesli jest zniechecony, ma gorszy dzien albo przyznaje sie do potkniecia, ZAWSZE odpowiedz z empatia i wsparciem, " +
-        "nawet przy tonie wymagajacym. Nigdy nie dobijaj kogos, kto jest na dnie."
+    // OVERRIDE kontekstowy (ochrona zaufania): ustawiony ton to BAZA. DWIE OSIE, nie jedna:
+    // (1) EMPATIA WOBEC CZŁOWIEKA jest bezwarunkowa — gdy user na dnie, nigdy nie dobijaj, nie oskarżaj.
+    // (2) SZCZEROŚĆ WOBEC TRAJEKTORII jest warunkowa — gdy wzorzec się POWTARZA, nazwij go łagodnie i ZAPYTAJ
+    //     co pod spodem. Szczerość ZAWSZE jako pytanie, nigdy werdykt (crisis-safe: pytanie otwiera drzwi
+    //     i przy potknięciu, i przy realnym kryzysie). Rozgrzeszanie w kółko = nie troska, lecz obojętność.
+    val toneOverride = "WAZNE: powyzszy ton to punkt wyjscia, nie sztywna regula. Czytaj stan uzytkownika. " +
+        "EMPATIA WOBEC CZLOWIEKA JEST BEZWARUNKOWA — jesli jest zniechecony, ma gorszy dzien albo przyznaje sie do " +
+        "potkniecia, ZAWSZE odpowiedz z empatia i wsparciem, nawet przy tonie wymagajacym; nigdy nie dobijaj kogos, " +
+        "kto jest na dnie, i nigdy nie oskarzaj. ALE badz tez SZCZERY WOBEC TRAJEKTORII: gdy widzisz POWTARZAJACY SIE " +
+        "wzorzec (kolejny tydzien bez progresu, nawracajace odkladanie celu, ta sama przeszkoda wracajaca w kolko), " +
+        "nie udawaj ze wszystko sie uklada — nazwij trajektorie lagodnie i ZADAJ PYTANIE, co naprawde stoi pod spodem. " +
+        "Szczerosc ZAWSZE w formie PYTANIA, nigdy werdyktu czy diagnozy: 'co ci realnie przeszkadza, ze od kilku tygodni " +
+        "stoimy w miejscu?' zamiast 'oszukujesz sam siebie'. Pytanie otwiera drzwi zarowno gdy to chwilowe potkniecie, " +
+        "jak i gdy user potrzebuje powazniejszej pomocy. Rozgrzeszanie w kolko to nie troska — to obojetnosc."
     val system = DietitianPrompt.systemPrompt() + "\n\n" + toneLine + "\n" + toneOverride + "\n\n" + contextText
     return DietitianConversation(ClaudeHttpApi(apiKey)).send(system, history, userText, handler, imageB64 = imageB64)
 }
