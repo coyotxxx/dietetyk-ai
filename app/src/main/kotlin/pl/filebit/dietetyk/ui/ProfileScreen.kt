@@ -225,6 +225,26 @@ fun ProfileScreen(app: DietetykApp, onBrowseProducts: () -> Unit = {}, onOpenBac
         SettingRow("🔔 Powiadomienia (wizyty)", if (notifOn) "Włączone" else "Wyłączone") {
             notifOn = !notifOn; app.settings.notificationsEnabled = notifOn
         }
+        // Self-test powiadomień — user może w każdej chwili sprawdzić, czy push dochodzi na JEGO telefon
+        // (problemy z oszczędzaniem baterii/zgodą są specyficzne dla urządzenia). Realne wiadomości = wizyty co tydzień.
+        var notifTestStatus by remember { mutableStateOf("") }
+        SettingRow("🔔 Wyślij testowe powiadomienie", notifTestStatus.ifBlank { "Sprawdź teraz ›" }) {
+            when {
+                !app.settings.notificationsEnabled -> notifTestStatus = "Najpierw włącz powiadomienia ↑"
+                !pl.filebit.dietetyk.notify.Notifications.hasPermission(app) -> notifTestStatus = "Brak zgody Androida — włącz w ustawieniach systemu"
+                else -> {
+                    notifTestStatus = "Wysyłam…"
+                    scope.launch {
+                        pl.filebit.dietetyk.notify.Notifications.postProactive(
+                            app,
+                            "Test powiadomień ✅",
+                            "Jeśli to widzisz na pasku — powiadomienia z Dietetyka działają. Realne wiadomości (wizyty kontrolne) przychodzą raz w tygodniu."
+                        )
+                        notifTestStatus = "Wysłane — sprawdź pasek ›"
+                    }
+                }
+            }
+        }
         var manualUpdate by remember { mutableStateOf<pl.filebit.dietetyk.update.UpdateInfo?>(null) }
         SettingRow("⬆️ Sprawdź aktualizacje", updateStatus.ifBlank { "wersja ${BuildConfig.VERSION_NAME}" }) {
             updateStatus = "Sprawdzam…"
