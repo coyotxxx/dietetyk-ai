@@ -83,7 +83,7 @@ class DietetykApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        Notifications.ensureChannel(this)
+        Notifications.ensureChannels(this)
         // Zaseeduj bazę produktów przy pierwszym uruchomieniu (idempotentne).
         appScope.launch {
             val dao = database.foodProductDao()
@@ -102,6 +102,13 @@ class DietetykApp : Application() {
             "daily_backup",
             ExistingPeriodicWorkPolicy.KEEP,
             PeriodicWorkRequestBuilder<pl.filebit.dietetyk.notify.BackupWorker>(1, TimeUnit.DAYS).build()
+        )
+        // Codzienny kontakt dietetyka (poranek / smart-nudge / wieczór + promocja insightów). Tyka co
+        // godzinę i wysyła TYLKO w oknach czasowych, przez NotificationPolicy (poziom/cisza/sufit). KEEP.
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "daily_nudge",
+            ExistingPeriodicWorkPolicy.KEEP,
+            PeriodicWorkRequestBuilder<pl.filebit.dietetyk.notify.DailyNudgeWorker>(1, TimeUnit.HOURS).build()
         )
     }
 

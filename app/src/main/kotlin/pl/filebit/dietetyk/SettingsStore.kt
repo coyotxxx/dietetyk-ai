@@ -87,10 +87,26 @@ class SettingsStore(context: Context) {
         get() = prefs.getString("theme_mode", "system").orEmpty()
         set(v) { prefs.edit().putString("theme_mode", v).apply() }
 
-    /** Czy proaktywne powiadomienia (wizyty kontrolne) są włączone. */
+    /** Czy proaktywne powiadomienia są włączone (master toggle). */
     var notificationsEnabled: Boolean
         get() = prefs.getBoolean("notifications_enabled", true)
         set(v) { prefs.edit().putBoolean("notifications_enabled", v).apply() }
+
+    /** Poziom intensywności powiadomień: "MINIMAL" | "BALANCED" | "COACH". Domyślnie BALANCED (werdykt ja+Fable). */
+    var notifIntensity: String
+        get() = prefs.getString("notif_intensity", "BALANCED").orEmpty()
+        set(v) { prefs.edit().putString("notif_intensity", v).apply() }
+
+    // --- Księgowanie dispatchera powiadomień (sufit dzienny + znaczniki „raz dziennie") ---
+    /** Ile CODZIENNYCH powiadomień poszło danego dnia (do sufitu). */
+    fun notifDailyCount(dayKey: String): Int = prefs.getInt("notif_count_$dayKey", 0)
+    fun incNotifDailyCount(dayKey: String) { prefs.edit().putInt("notif_count_$dayKey", notifDailyCount(dayKey) + 1).apply() }
+    /** Znacznik jednorazowego zdarzenia w danym dniu (np. "morning", "evening", "nudge:Posiłek 2"). */
+    fun notifMark(dayKey: String, key: String): Boolean = prefs.getBoolean("notif_mark_${dayKey}_$key", false)
+    fun setNotifMark(dayKey: String, key: String) { prefs.edit().putBoolean("notif_mark_${dayKey}_$key", true).apply() }
+    /** Ile smart-nudge'y o posiłkach poszło danego dnia (osobny limit ≤2, niezależny od sufitu). */
+    fun notifNudgeCount(dayKey: String): Int = prefs.getInt("notif_nudge_$dayKey", 0)
+    fun incNotifNudgeCount(dayKey: String) { prefs.edit().putInt("notif_nudge_$dayKey", notifNudgeCount(dayKey) + 1).apply() }
 
     /** Czy codzienna automatyczna kopia zapasowa (lokalna) jest włączona. */
     var autoBackupEnabled: Boolean

@@ -222,8 +222,27 @@ fun ProfileScreen(app: DietetykApp, onBrowseProducts: () -> Unit = {}, onOpenBac
             }
         }
 
-        SettingRow("🔔 Powiadomienia (wizyty)", if (notifOn) "Włączone" else "Wyłączone") {
+        SettingRow("🔔 Powiadomienia", if (notifOn) "Włączone" else "Wyłączone") {
             notifOn = !notifOn; app.settings.notificationsEnabled = notifOn
+        }
+        if (notifOn) {
+            var intensity by remember { mutableStateOf(app.settings.notifIntensity) }
+            Text("Jak często dietetyk się odzywa", color = Palette.Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 4.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("MINIMAL" to "Minimalny", "BALANCED" to "Zrównoważony").forEach { (mode, label) ->
+                    val active = intensity == mode
+                    Box(
+                        Modifier.weight(1f).background(if (active) Palette.Green else Palette.Card, RoundedCornerShape(12.dp))
+                            .clickable { intensity = mode; app.settings.notifIntensity = mode }.padding(vertical = 11.dp),
+                        contentAlignment = Alignment.Center
+                    ) { Text(label, color = if (active) androidx.compose.ui.graphics.Color.White else Palette.TextDark, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
+                }
+            }
+            Text(
+                if (intensity == "MINIMAL") "Tylko cotygodniowa wizyta i sygnały zdrowotne (~1/tydzień)."
+                else "Codzienny kontakt: poranny plan, przypomnienia gdy posiłek niezalogowany, wieczorne podsumowanie (max 3/dzień).",
+                color = Palette.Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
+            )
         }
         // Self-test powiadomień — user może w każdej chwili sprawdzić, czy push dochodzi na JEGO telefon
         // (problemy z oszczędzaniem baterii/zgodą są specyficzne dla urządzenia). Realne wiadomości = wizyty co tydzień.

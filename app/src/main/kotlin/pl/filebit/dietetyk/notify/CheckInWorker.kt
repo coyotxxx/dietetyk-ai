@@ -39,7 +39,7 @@ class CheckInWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ct
             ).takeIf { it.isNotBlank() } ?: FALLBACK
         }.getOrDefault(FALLBACK)
 
-        Notifications.postProactive(app, "Dietetyk — wizyta kontrolna", body)
+        NotificationPolicy.dispatch(app, pl.filebit.dietetyk.core.notify.NotifKind.WEEKLY_VISIT, "Dietetyk — wizyta kontrolna", body)
 
         // Zapis wizyty do historii (idempotentnie — najwyżej 1/dzień; pomiń gdy AI zawiodło).
         runCatching {
