@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -195,11 +196,30 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
                 Text("Cześć${if (userName.isNotBlank()) ", $userName" else ""}! 👋", color = Palette.TextDark, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
                 Text(polishDate(), color = Palette.Muted, fontSize = 14.sp, modifier = Modifier.padding(top = 2.dp, bottom = 16.dp))
             }
-            Box(Modifier.clickable { onBell() }.padding(4.dp), contentAlignment = Alignment.TopEnd) {
+            Box(Modifier.clickable { onBell() }.padding(4.dp)) {
                 Text("🔔", fontSize = 24.sp)
                 if (unread > 0) {
-                    Box(Modifier.size(18.dp).background(Palette.Orange, androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) {
-                        Text("$unread", color = androidx.compose.ui.graphics.Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Box(
+                        Modifier.align(Alignment.TopEnd).offset(x = 5.dp, y = (-3).dp)
+                            .size(18.dp).background(Palette.Orange, androidx.compose.foundation.shape.CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            if (unread > 9) "9+" else "$unread",
+                            color = androidx.compose.ui.graphics.Color.White,
+                            fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            lineHeight = 10.sp,
+                            // includeFontPadding=false + wyśrodkowanie lineHeight → cyfra realnie na środku kółka
+                            // (bez tego domyślny padding fontu podnosi glif → „nierówno").
+                            style = androidx.compose.ui.text.TextStyle(
+                                platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = false),
+                                lineHeightStyle = androidx.compose.ui.text.style.LineHeightStyle(
+                                    alignment = androidx.compose.ui.text.style.LineHeightStyle.Alignment.Center,
+                                    trim = androidx.compose.ui.text.style.LineHeightStyle.Trim.Both
+                                )
+                            )
+                        )
                     }
                 }
             }
