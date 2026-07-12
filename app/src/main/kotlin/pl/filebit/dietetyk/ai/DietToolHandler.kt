@@ -259,6 +259,11 @@ class DietToolHandler(
         // Zaślepki (stub) → backstop: nigdy nie mogą być składnikiem planu (0 makr rozjechałoby cel).
         val stubNorms = entities.filter { it.source == "stub" }
             .map { FoodProductSeed.normalize(it.name) }.toSet()
+        // Lubiane (❤️) → reguła kotwicowa planu #1 (każdy posiłek ≥1 lubiany).
+        val likedNorms = entities.filter { it.preference == pl.filebit.dietetyk.data.db.Pref.PREFER }
+            .map { FoodProductSeed.normalize(it.name) }.toSet()
+        val firstPlan = app.database.planDao().get() == null
+        if (firstPlan) android.util.Log.i("DietPlan", "Generowanie PIERWSZEGO planu — lubianych produktów: ${likedNorms.size}")
         // TWARDE ograniczenia diety z profilu (alergie/nietolerancje/typ diety) → walidator hard-odrzuca.
         // BEZPIECZEŃSTWO: alergen z wywiadu NIGDY nie może przejść do planu (apka rodzinna, dziecko z alergią).
         val constraints = pl.filebit.dietetyk.core.plan.ConstraintResolver.resolve(
@@ -277,7 +282,8 @@ class DietToolHandler(
             perMealProteinMinG = 0, maxCookingMinutesPerMeal = 240,
             productsByName = byName, avoidedNorms = avoidedNorms,
             stubNorms = stubNorms, constraints = constraints,
-            minUniqueProductsPerDay = if (profile.varietyMode == pl.filebit.dietetyk.core.model.VarietyMode.SAME_DAILY) 6 else 5
+            minUniqueProductsPerDay = if (profile.varietyMode == pl.filebit.dietetyk.core.model.VarietyMode.SAME_DAILY) 6 else 5,
+            likedNorms = likedNorms, firstPlan = firstPlan
         )
         val result = PlanValidator.validate(plan, ctx)
         // TWARDE BEZPIECZEŃSTWO/SMAK: błędy, których NIGDY nie wolno zapisać — niezależnie od trybu i prób.

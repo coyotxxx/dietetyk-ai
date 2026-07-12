@@ -130,6 +130,30 @@ class PlanValidatorTest {
         assertTrue("różnorodność to WARNING, nie ERROR", r.errors.none { it.code == "low_variety_day" })
     }
 
+    // === REGUŁA KOTWICOWA planu #1: każdy posiłek ≥1 lubiany produkt (WARNING) ===
+
+    @Test
+    fun `plan #1 - posilek bez lubianego to WARNING nie blad`() {
+        val r = PlanValidator.validate(AiDayPlan(listOf(goodMeal)),
+            ctx(enforceKcal = false, enforceMacros = false).copy(likedNorms = setOf("oliwa z oliwek"), firstPlan = true))
+        assertTrue(r.warnings.any { it.code == "meal_no_liked_product" })
+        assertTrue("kotwica to WARNING, nie ERROR", r.errors.none { it.code == "meal_no_liked_product" })
+    }
+
+    @Test
+    fun `plan #1 - posilek z lubianym NIE ostrzega`() {
+        val r = PlanValidator.validate(AiDayPlan(listOf(goodMeal)),
+            ctx(enforceKcal = false, enforceMacros = false).copy(likedNorms = setOf("kurczaka"), firstPlan = true))
+        assertFalse(r.warnings.any { it.code == "meal_no_liked_product" })
+    }
+
+    @Test
+    fun `kotwica NIEAKTYWNA gdy to nie pierwszy plan`() {
+        val r = PlanValidator.validate(AiDayPlan(listOf(goodMeal)),
+            ctx(enforceKcal = false, enforceMacros = false).copy(likedNorms = setOf("oliwa z oliwek"), firstPlan = false))
+        assertFalse(r.warnings.any { it.code == "meal_no_liked_product" })
+    }
+
     @Test
     fun `posilek zbyt tlusty (ponad 55 proc kcal) to blad`() {
         val meal = AiMealRecipe("Sama oliwa", 884, 1, listOf(AiRecipeIngredient("Oliwa z oliwek", 100)))

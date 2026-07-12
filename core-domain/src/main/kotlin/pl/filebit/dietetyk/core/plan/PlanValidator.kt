@@ -48,6 +48,10 @@ data class ValidationContext(
     /** Minimalna liczba UNIKALNYCH produktów w dniu (0 = wyłączone). Miękki próg (WARNING) przeciw monotonii —
      *  szczególnie w trybie SAME_DAILY, gdzie jeden dzień powtarza się przez cały tydzień. */
     val minUniqueProductsPerDay: Int = 0,
+    /** Znormalizowane nazwy produktów LUBIANYCH (❤️). Reguła kotwicowa planu #1: każdy posiłek ≥1 lubiany. */
+    val likedNorms: Set<String> = emptySet(),
+    /** Czy to PIERWSZY plan (brak istniejącego). Włącza regułę kotwicową (WARNING, nie blokada). */
+    val firstPlan: Boolean = false,
     val perSlotKcalTargets: List<Int> = emptyList(),
     val perSlotKcalTolerance: Double = 0.25,
     val enforceDailyKcal: Boolean = true,
@@ -92,6 +96,7 @@ object PlanValidator {
             }
 
             val matchedProducts = mutableListOf<FoodProductModel>()
+            var mealHasLiked = false
             var mealKcalReal = 0.0
             var mealProteinReal = 0.0
             var mealCarbsReal = 0.0
@@ -113,6 +118,11 @@ object PlanValidator {
                     if (hit != null) errors += ValidationIssue(ValidationSeverity.ERROR, mIdx, "stub_ingredient",
                         "Posiłek '${meal.name}' używa '${ing.productName}' — to produkt bez wartości odżywczych (zaślepka). Użyj realnego produktu z bazy.")
                 }
+                // Reguła kotwicowa (plan #1): czy składnik jest LUBIANY (całe słowo, jak avoided).
+                if (ctx.likedNorms.isNotEmpty()) {
+                    val ingNorm = " ${normalizeName(ing.productName)} "
+                    if (ctx.likedNorms.any { lk -> lk.isNotBlank() && ingNorm.contains(" $lk ") }) mealHasLiked = true
+                }
                 if (ing.grams < 5 || ing.grams > 1000) {
                     warnings += ValidationIssue(ValidationSeverity.WARNING, mIdx, "grams_out_of_range",
                         "${ing.productName}: ${ing.grams}g poza rozsądnym zakresem [5-1000g].")
@@ -132,6 +142,12 @@ object PlanValidator {
                 mealFatReal += match.fatPer100g * factor
             }
 
+            // Reguła kotwicowa planu #1: każdy posiłek ma zawierać ≥1 lubiany produkt (WARNING, nie blokada —
+            // bias na przepust; egzekwuje głównie prompt, walidator tylko sygnalizuje AI do poprawy).
+            if (ctx.firstPlan && ctx.likedNorms.isNotEmpty() && !mealHasLiked && meal.ingredients.isNotEmpty()) {
+                warnings += ValidationIssue(ValidationSeverity.WARNING, mIdx, "meal_no_liked_product",
+                    "Posiłek '${meal.name}' nie zawiera żadnego produktu LUBIANEGO (❤️). W pierwszym planie każdy posiłek powinien mieć co najmniej jeden — dołóż lubiany produkt.")
+            }
             if (meal.kcal > 0 && abs(meal.kcal - mealKcalReal) > meal.kcal * 0.10) {
                 warnings += ValidationIssue(ValidationSeverity.WARNING, mIdx, "ai_kcal_mismatch",
                     "AI deklaruje ${meal.kcal} kcal, real (z bazy): ${mealKcalReal.toInt()} kcal. Używam realnej.")

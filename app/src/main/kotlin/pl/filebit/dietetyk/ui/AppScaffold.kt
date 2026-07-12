@@ -60,7 +60,8 @@ fun AppScaffold(app: DietetykApp) {
     var showNotifs by remember { mutableStateOf(false) }
     var showProducts by remember { mutableStateOf(false) }
     var showBackup by remember { mutableStateOf(false) }
-    val overlay = showNotifs || showProducts || showBackup
+    var showTastePicker by remember { mutableStateOf(false) }
+    val overlay = showNotifs || showProducts || showBackup || showTastePicker
 
     // Aktualizacja: sprawdź raz na starcie → bottom sheet (6.2), jedno miejsce zamiast banera na Dziś.
     var updateInfo by remember { mutableStateOf<pl.filebit.dietetyk.update.UpdateInfo?>(null) }
@@ -76,10 +77,11 @@ fun AppScaffold(app: DietetykApp) {
                 showNotifs -> NotificationsScreen(app) { showNotifs = false }
                 showProducts -> ProductsScreen(app) { showProducts = false }
                 showBackup -> BackupScreen(app) { showBackup = false }
+                showTastePicker -> OnboardingTastePicker(app) { showTastePicker = false }
                 else -> when (tab) {
                     Tab.DZIS -> TodayScreen(app, onBell = { showNotifs = true }, onGoToChat = { tab = Tab.DIETETYK }, onBrowseProducts = { showProducts = true })
                     Tab.PLAN -> PlanScreen(app, onGoToChat = { tab = Tab.DIETETYK })
-                    Tab.DIETETYK -> ChatScreen(app, Modifier.fillMaxSize(), onBrowseProducts = { showProducts = true })
+                    Tab.DIETETYK -> ChatScreen(app, Modifier.fillMaxSize(), onBrowseProducts = { showProducts = true }, onOpenTastePicker = { showTastePicker = true })
                     Tab.POSTEPY -> ProgressScreen(app, onGoToChat = { tab = Tab.DIETETYK })
                     Tab.PROFIL -> ProfileScreen(app, onBrowseProducts = { showProducts = true }, onOpenBackup = { showBackup = true })
                     null -> {}

@@ -177,9 +177,11 @@ internal class ChatViewModel(private val app: DietetykApp) : ViewModel() {
 
 /** Etykieta akcji-mostu: gdy AI ją zaproponuje, kliknięcie OTWIERA bazę produktów zamiast wysyłać tekst. */
 private const val OPEN_PRODUCTS_ACTION = "Otwórz bazę produktów"
+/** Akcja onboardingu: otwiera szybki picker smaku (siatka ❤️/🚫) zamiast wysyłać tekst do AI. */
+private const val OPEN_TASTE_PICKER_ACTION = "Otwórz i zaznacz produkty"
 
 @Composable
-fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier, onBrowseProducts: () -> Unit = {}) {
+fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier, onBrowseProducts: () -> Unit = {}, onOpenTastePicker: () -> Unit = {}) {
     var apiKey by remember { mutableStateOf(app.settings.apiKey) }
     if (apiKey.isBlank()) {
         ApiKeyGate(onSaved = { app.settings.apiKey = it; apiKey = it })
@@ -192,7 +194,11 @@ fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier, onBrowseProducts
     // Akcja z bąbelka/podpowiedzi: sentinel „Otwórz bazę produktów" nawiguje do bazy (most z KROKU 6),
     // każda inna akcja to zwykła szybka odpowiedź wysyłana do dietetyka.
     val onAction: (String) -> Unit = { a ->
-        if (a.equals(OPEN_PRODUCTS_ACTION, ignoreCase = true)) onBrowseProducts() else vm.send(a, apiKey)
+        when {
+            a.equals(OPEN_TASTE_PICKER_ACTION, ignoreCase = true) -> onOpenTastePicker()
+            a.equals(OPEN_PRODUCTS_ACTION, ignoreCase = true) -> onBrowseProducts()
+            else -> vm.send(a, apiKey)
+        }
     }
     var photoUri by remember { mutableStateOf<android.net.Uri?>(null) }
 
@@ -264,6 +270,24 @@ fun ChatScreen(app: DietetykApp, modifier: Modifier = Modifier, onBrowseProducts
                     Box(
                         Modifier.clip(RoundedCornerShape(16.dp)).background(Palette.GreenTint, RoundedCornerShape(16.dp)).clickable { vm.send(s, apiKey) }.padding(horizontal = 12.dp, vertical = 8.dp)
                     ) { Text(s, color = Palette.GreenDark, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+                }
+            }
+        }
+        // Deterministyczny pasek pickera smaku — GWARANCJA zbiórki preferencji w onboardingu, niezależna od
+        // tego, czy AI wyemituje akcję (prompt-only zawodził — patrz v1.16). Znika po przejściu pickera.
+        if (interview != null && !app.settings.tastePickerSeen) {
+            Row(
+                Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(RoundedCornerShape(16.dp))
+                    .background(Palette.GreenTint, RoundedCornerShape(16.dp)).clickable { onOpenTastePicker() }.padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("❤️", fontSize = 20.sp)
+                Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                    Text("Zaznacz co lubisz i czego nie jesz", color = Palette.GreenDark, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text("Ułożę plan z Twoich produktów — zajmie 30 sekund", color = Palette.Muted, fontSize = 12.sp)
+                }
+                Box(Modifier.clip(RoundedCornerShape(12.dp)).background(Palette.Green, RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 8.dp)) {
+                    Text("Otwórz", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

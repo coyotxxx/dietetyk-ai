@@ -34,6 +34,8 @@ data class DietitianContext(
     val memoryNotes: List<String> = emptyList(),   // pamięć epizodyczna: „nie znosi twarogu", „środy ciężkie"…
     val favoriteProducts: List<String> = emptyList(), // ❤️ lubiane — AI preferuje je w planach
     val avoidedProducts: List<String> = emptyList(),  // 🚫 nielubiane — AI NIGDY nie planuje (twardy guardrail walidatora)
+    /** Czy istnieje już zapisany plan. false = PIERWSZY plan → mocniej trzymaj lubianych (pierwsze wrażenie). */
+    val hasActivePlan: Boolean = false,
     // === CEL / KONTRAKT ===
     val currentGoal: DailyMacroGoal? = null,        // aktualne kcal/makro + breakdown „skąd te liczby"
     val tdeeEstimate: TdeeEstimate? = null,         // adaptacyjny metabolizm (realny vs wzór + ufność)

@@ -92,6 +92,12 @@ class SettingsStore(context: Context) {
         get() = prefs.getBoolean("notifications_enabled", true)
         set(v) { prefs.edit().putBoolean("notifications_enabled", v).apply() }
 
+    /** Czy user przeszedł już picker smaku (onboarding). Steruje deterministycznym paskiem w czacie —
+     *  gwarancja, że picker jest pokazany, niezależnie od tego, czy AI wyemituje akcję (werdykt ja+Fable). */
+    var tastePickerSeen: Boolean
+        get() = prefs.getBoolean("taste_picker_seen", false)
+        set(v) { prefs.edit().putBoolean("taste_picker_seen", v).apply() }
+
     /** Poziom intensywności powiadomień: "MINIMAL" | "BALANCED" | "COACH". Domyślnie BALANCED (werdykt ja+Fable). */
     var notifIntensity: String
         get() = prefs.getString("notif_intensity", "BALANCED").orEmpty()

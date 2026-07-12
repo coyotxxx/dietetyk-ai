@@ -27,7 +27,8 @@ class DietitianContextBuilder(
     private val weightRepo: WeightRepository,
     private val energyLogDao: EnergyLogDao,
     private val aiMemoryDao: AiMemoryDao,
-    private val foodProductDao: pl.filebit.dietetyk.data.db.FoodProductDao
+    private val foodProductDao: pl.filebit.dietetyk.data.db.FoodProductDao,
+    private val planDao: pl.filebit.dietetyk.data.db.PlanDao
 ) {
     private val dayMs = 24L * 3600 * 1000
 
@@ -48,6 +49,7 @@ class DietitianContextBuilder(
         }.getOrDefault(emptyList())
         val favorites = runCatching { foodProductDao.preferred().map { it.name } }.getOrDefault(emptyList())
         val avoided = runCatching { foodProductDao.avoided().map { it.name } }.getOrDefault(emptyList())
+        val hasPlan = runCatching { planDao.get() != null }.getOrDefault(false)
         val daysSinceLastLog = energyLogDao.latest()?.let { ((nowMs - it.dateMs) / dayMs).toInt() }
 
         // Stan opieki (uproszczony): mając profil jesteśmy w prowadzeniu. Harmonogram wizyt (CHECKIN_DUE)
@@ -66,6 +68,6 @@ class DietitianContextBuilder(
             lastCheckIn = null,
             daysSinceLastLog = daysSinceLastLog,
             nowMs = nowMs
-        ).copy(favoriteProducts = favorites, avoidedProducts = avoided)
+        ).copy(favoriteProducts = favorites, avoidedProducts = avoided, hasActivePlan = hasPlan)
     }
 }

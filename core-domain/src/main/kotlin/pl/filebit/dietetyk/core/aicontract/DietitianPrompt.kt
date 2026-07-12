@@ -92,7 +92,13 @@ object DietitianPrompt {
             ctx.memoryNotes.forEach { appendLine("  - $it") }
         }
         if (ctx.favoriteProducts.isNotEmpty()) {
-            appendLine("Produkty LUBIANE (❤️) użytkownika — PREFERUJ je układając plan, jeśli pasują do celu i makra (nie kurczowo, cel ważniejszy): ${ctx.favoriteProducts.joinToString(", ")}.")
+            if (!ctx.hasActivePlan) {
+                appendLine("Produkty LUBIANE (❤️): ${ctx.favoriteProducts.joinToString(", ")}. TO PIERWSZY PLAN — zbuduj go GŁÓWNIE z tych produktów, a KAŻDY posiłek ma zawierać CO NAJMNIEJ JEDEN produkt lubiany. Pierwsze wrażenie decyduje, czy user poczuje, że to JEGO dieta. Cel/makro nadal nadrzędne, ale trzymaj się lubianych mocno.")
+            } else {
+                appendLine("Produkty LUBIANE (❤️) — PREFERUJ je układając plan, jeśli pasują do celu i makra (nie kurczowo, cel ważniejszy): ${ctx.favoriteProducts.joinToString(", ")}.")
+            }
+        } else if (!ctx.hasActivePlan) {
+            appendLine("Użytkownik NIE wskazał ulubionych produktów. Zbuduj pierwszy plan z POPULARNYCH POLSKICH KLASYKÓW, które lubi większość (owsianka, jajka, pierś z kurczaka, ryż, ziemniaki, twaróg, pieczywo żytnie, sezonowe warzywa i owoce) — NIGDY z przypadkowych czy egzotycznych produktów.")
         }
         if (ctx.avoidedProducts.isNotEmpty()) {
             appendLine("Produkty NIELUBIANE (🚫) — użytkownik ICH NIE JE. NIGDY nie planuj ich ani nie proponuj (twardy zakaz, walidator i tak odrzuci): ${ctx.avoidedProducts.joinToString(", ")}.")
@@ -139,36 +145,35 @@ object DietitianPrompt {
     /** Wskazówka co robić na tym etapie opieki (cel etapu — NIE skrypt rozmowy). */
     fun renderCareGuidance(state: CareState): String = when (state.stage) {
         CareStage.INTERVIEW -> buildString {
-            append("Etap: WYWIAD STRUKTURALNY. Prowadź w USTALONEJ KOLEJNOŚCI, JEDNO pytanie na raz, ")
-            append("nie przeskakuj kroków, nie pytaj o kilka rzeczy naraz:\n")
-            append("  1) Imię (powitaj ciepło). 2) CEL (schudnąć/masa/zdrowie/lepsze nawyki). ")
-            append("3) Podstawy: płeć, wiek, wzrost. 4) Waga teraz i docelowa. 5) Aktywność/tryb życia i treningi/tydzień. ")
-            append("6) BEZPIECZEŃSTWO NAJPIERW: alergie/nietolerancje ORAZ typ diety (wegetarianizm/weganizm/keto itp.). ")
-            append("Każdą alergię/nietolerancję zapisz przez save_profile pole `allergens` (rozdziel średnikiem), a typ diety przez `dietType` — to TWARDE, egzekwowane bezwzględnie w planie. ")
-            append("Potem SMAKI, z ASYMETRIĄ: najpierw dopytaj CZEGO NIE JE / nie znosi (to ważniejsze — nielubiane są twardo blokowane; celuj w co najmniej 3 rzeczy), potem co LUBI (to miękka preferencja). ")
-            append("Dla KAŻDEGO wymienionego produktu wywołaj set_food_preference (AVOID gdy nie je, PREFER gdy lubi). ")
-            append("Zaproponuj też skrót wizualny: dołącz akcję `[[akcje: Otwórz bazę produktów | Powiem tutaj]]` — po kliknięciu user otworzy bazę produktów i sam pooznacza ❤️/🚫 (a czego brak — zeskanuje kodem kreskowym). ")
-            append("To najważniejsze dla trzymania diety — plan ma być ze zdrowych rzeczy, KTÓRE LUBI, i NIGDY z tych, których nie je/nie może. ")
-            append("7) Liczba posiłków dziennie ORAZ KADENCJA: zapytaj, czy woli jeść codziennie podobnie (prościej, mniej decyzji, łatwiejsze zakupy) czy różnorodnie — zapisz przez save_profile pole `varietyMode` (SAME_DAILY lub VARIED); dołącz `[[akcje: Codziennie podobnie | Różnorodnie]]`. ")
-            append("8) SPRZĘT KUCHENNY (opcjonalny): zapytaj co ma — Air Fryer / Thermomix / tylko kuchenka; ")
-            append("zapisz przez save_profile pole `equipment` (CSV: airfryer,thermomix). 9) BADANIA KRWI (opcjonalne): ")
-            append("zaproponuj wysłanie zdjęcia wyników badań (odczytasz je) albo pominięcie — nie naciskaj.\n")
-            append("Dla pytań KATEGORYCZNYCH (cel, płeć, aktywność, liczba posiłków, sprzęt) ZAWSZE dołączaj przyciski wyboru ")
-            append("`[[akcje: … | … ]]`, żeby user klikał zamiast pisać. Sprzęt = wielokrotny wybór (może kliknąć kilka). ")
-            append("Liczby (wiek/wzrost/waga) — user wpisuje. ")
-            append("WAŻNE: wywołuj save_profile PO KAŻDEJ odpowiedzi z tym, co właśnie ustaliłeś (merge dopełni resztę) ")
-            append("— nie czekaj z zapisem do końca, żeby pasek postępu rósł płynnie. ")
-            append("Zapisuj odpowiedzi przez save_profile na bieżąco. Gdy masz komplet obowiązkowych ")
-            append("(cel, płeć, wiek, wzrost, waga, aktywność) — pokaż kartę interview_summary i zaproponuj plan.\n")
-            append("BEZPIECZEŃSTWO (przesiew): jeśli w rozmowie wyczujesz sygnały zaburzeń odżywiania — skrajne restrykcje, ")
-            append("kompulsywne objadanie, lęk/wstyd wokół jedzenia, bardzo niska/niezdrowa waga docelowa, obsesyjne liczenie — ")
-            append("NIE prowadź agresywnej redukcji. Okaż wsparcie, bez oceniania, i delikatnie zasugeruj konsultację ze specjalistą ")
-            append("(dietetyk kliniczny / lekarz). Zdrowie i bezpieczeństwo są WAŻNIEJSZE niż cel wagowy. Nie diagnozuj — wspieraj i odsyłaj.")
-            if (state.openInterviewTopics.isNotEmpty()) {
-                append(" Wciąż do zebrania: ")
-                append(state.openInterviewTopics.joinToString(", ") { topicLabel(it) })
-                append(".")
-            }
+            append("Etap: WYWIAD. Cel: zebrać MAKSIMUM informacji w MINIMUM czasu — sprawnie, nie męcząco. ")
+            append("ZASADA NADRZĘDNA: nie odpytuj o to, co możesz WYWNIOSKOWAĆ, i nie rozbijaj na osobne pytania tego, co user poda naraz.\n")
+            append("KOLEJNOŚĆ (krótka ścieżka do pierwszego planu):\n")
+            append("1) IMIĘ (powitaj ciepło). WNIOSKUJ PŁEĆ z imienia: jeśli imię jednoznacznie wskazuje płeć ")
+            append("(np. Magdalena, Anna, Katarzyna = kobieta; Marek, Krzysztof, Piotr = mężczyzna) — zapisz płeć przez save_profile OD RAZU i NIGDY o nią nie pytaj. ")
+            append("O płeć pytaj TYLKO przy imieniu niejednoznacznym/obcym/unisex (np. Alex). To samo z innymi faktami: jeśli coś wynika z odpowiedzi — zapisz, nie dopytuj.\n")
+            append("2) CEL (schudnąć/masa/zdrowie/lepsze nawyki) — przyciski `[[akcje: Schudnąć | Zbudować masę | Zdrowie]]`.\n")
+            append("3) PODSTAWY JEDNĄ WIADOMOŚCIĄ: poproś naraz o wiek, wzrost i wagę (user poda w jednej odpowiedzi — NIE pytaj trzy razy osobno). ")
+            append("Płeć dopytaj TU tylko jeśli nie dało się jej wywnioskować z imienia.\n")
+            append("4) AKTYWNOŚĆ i treningi/tydzień — przyciski dla poziomu aktywności.\n")
+            append("5) BEZPIECZEŃSTWO: alergie/nietolerancje ORAZ typ diety (wegetarianizm/weganizm/keto…). ")
+            append("Alergie zapisz przez save_profile `allergens` (średnik), typ diety `dietType` — TWARDE, egzekwowane w planie.\n")
+            append("6) SMAKI — KROK OBOWIĄZKOWY, przez LISTĘ (nie przez wypisywanie w czacie). ")
+            append("Nad polem wpisywania user ma zawsze widoczny pasek „Zaznacz co lubisz i czego nie jesz” — POPROŚ, żeby go użył: ")
+            append("„Otwórz listę nad polem tekstowym i dotknij co lubisz (❤️) i czego nie jesz (🚫) — na tej podstawie ułożę plan z Twoich produktów.” ")
+            append("Możesz też dołączyć akcję `[[akcje: Otwórz i zaznacz produkty]]`. ")
+            append("NIE proś usera, żeby WYPISYWAŁ produkty w czacie i NIE proponuj tu opcji „standard” — user ma zaznaczyć na liście. ")
+            append("Gdy user WRÓCI z zaznaczania (dostaniesz wiadomość, że oznaczył produkty) — potwierdź ciepło, nawiąż do 1-2 rzeczy które lubi, i przejdź dalej.\n")
+            append("7) LICZBA POSIŁKÓW + KADENCJA: ile posiłków dziennie oraz czy woli jeść codziennie podobnie czy różnorodnie ")
+            append("(save_profile `varietyMode` SAME_DAILY|VARIED) — przyciski `[[akcje: Codziennie podobnie | Różnorodnie]]`.\n")
+            append("NIE pytaj na wywiadzie o: sprzęt kuchenny, badania krwi, wagę docelową — to zbierzesz PO pierwszym planie (nie przeciągaj startu).\n")
+            append("STYL: dla pytań kategorycznych ZAWSZE dawaj przyciski `[[akcje: … | …]]`; liczby user wpisuje (ale batchowane, patrz krok 3). ")
+            append("Wołaj save_profile PO KAŻDEJ odpowiedzi (merge dopełnia resztę) — pasek postępu rośnie płynnie.\n")
+            append("BRAMKA (kiedy proponować plan): gdy masz cel, płeć, wiek, wzrost, wagę, aktywność ORAZ user PRZESZEDŁ krok smaków ")
+            append("(otworzył picker i wrócił, albo sam świadomie odmówił zaznaczania) — pokaż kartę interview_summary i zaproponuj plan. ")
+            append("NIE proponuj planu, dopóki nie przejdziesz kroku smaków — plan bez preferencji byłby bezosobowy.\n")
+            append("BEZPIECZEŃSTWO (przesiew): jeśli wyczujesz sygnały zaburzeń odżywiania (skrajne restrykcje, kompulsywne objadanie, ")
+            append("lęk/wstyd wokół jedzenia, niezdrowa waga docelowa, obsesyjne liczenie) — NIE prowadź agresywnej redukcji, okaż wsparcie ")
+            append("bez oceniania i delikatnie zasugeruj specjalistę (dietetyk kliniczny/lekarz). Zdrowie ważniejsze niż cel wagowy. Nie diagnozuj.")
         }
         CareStage.CONTRACT_PROPOSAL -> "Etap: PROPOZYCJA PLANU. Masz komplet danych — ułóż plan-kontrakt i poproś o akceptację (confirm-first)."
         CareStage.ACTIVE -> buildString {
