@@ -1,7 +1,6 @@
 package pl.filebit.dietetyk.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -106,11 +105,10 @@ private fun CardActions(actions: List<JsonObject>, onAction: (String) -> Unit) {
         actions.take(3).forEachIndexed { i, a ->
             val label = a.str("label") ?: "OK"
             val send = a.str("send") ?: label
-            val bg = when (i) { 0 -> Palette.Green; 1 -> Palette.GreenTint; else -> Color.Transparent }
-            val fg = when (i) { 0 -> Color.White; 1 -> Palette.GreenDark; else -> Palette.Muted }
+            val bg = if (i == 0) Palette.Green else Palette.GreenTint
+            val fg = if (i == 0) Color.White else Palette.GreenDark
             Box(
                 Modifier.weight(1f)
-                    .then(if (i >= 2) Modifier.border(1.dp, Palette.Line, RoundedCornerShape(12.dp)) else Modifier)
                     .background(bg, RoundedCornerShape(12.dp))
                     .clickable { onAction(send) }.padding(vertical = 10.dp),
                 contentAlignment = Alignment.Center
