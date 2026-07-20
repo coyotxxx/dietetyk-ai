@@ -69,6 +69,36 @@ class DietitianContextBuilder(
             }
             .sortedBy { it.dateMs }
 
+        // TRZYMANIE PLANU (14d) — realne %, dotąd zaślepka 0/0. Liczone z dni KOMPLETNYCH względem celu,
+        // żeby prompt nie kłamał „kcal 0%" przy 13 zalogowanych dniach (myliło AI: „pierwszy zalogowany dzień").
+        val since14 = nowMs - 14 * dayMs
+        val goal = pl.filebit.dietetyk.core.calc.GoalPipeline.compute(
+            profile = profile,
+            latestMeasuredWeightKg = weights.maxByOrNull { it.dateMs }?.weightKg
+        )
+        val completeDayMacros = rawLogs
+            .filter { it.dateMs >= since14 }
+            .groupBy { dayStart(it.dateMs) }
+            .values.filter { it.size >= plannedPerDay && it.sumOf { r -> r.kcalConsumed } > 0 }
+            .map { rows ->
+                intArrayOf(
+                    rows.sumOf { it.kcalConsumed }, rows.sumOf { it.proteinG },
+                    rows.sumOf { it.carbsG }, rows.sumOf { it.fatG }
+                )
+            }
+        val adherence = if (completeDayMacros.isEmpty()) AdherenceSummary()
+        else {
+            fun pct(sel: (IntArray) -> Int, target: Int): Int =
+                if (target <= 0) 0 else (completeDayMacros.map { sel(it) * 100.0 / target }.average()).toInt()
+            AdherenceSummary(
+                sampleDays = completeDayMacros.size,
+                avgKcalPct = pct({ it[0] }, goal.kcal),
+                avgProteinPct = pct({ it[1] }, goal.proteinG),
+                avgCarbsPct = pct({ it[2] }, goal.carbsG),
+                avgFatPct = pct({ it[3] }, goal.fatG)
+            )
+        }
+
         // Migawka DZIŚ (realna — dotąd była pusta): zjedzone kcal/białko/posiłki + ile zaplanowano.
         val todayStart = dayStart(nowMs)
         val todayRows = rawLogs.filter { dayStart(it.dateMs) == todayStart }
@@ -104,7 +134,7 @@ class DietitianContextBuilder(
             weightSamples = weights,
             energyLogs = energyLogs,
             memoryNotes = memoryNotes,
-            adherence14d = AdherenceSummary(),
+            adherence14d = adherence,
             today = todaySnapshot,
             lastCheckIn = null,
             daysSinceLastLog = daysSinceLastLog,
