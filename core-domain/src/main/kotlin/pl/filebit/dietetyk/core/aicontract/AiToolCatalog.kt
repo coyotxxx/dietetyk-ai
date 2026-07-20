@@ -79,6 +79,15 @@ object AiToolCatalog {
             mutating = true, emitsNumbers = true
         ),
         AiToolSpec(
+            "log_planned_day",
+            "Zaloguj posiłki ZAPLANOWANE na dziś, gdy user mówi, że zjadł zgodnie z planem („zjadłem wszystko”, " +
+                "„wszystko zgodnie z planem”, „zjadłem jak w planie”). Kcal/makro biorą się Z PLANU (widzisz go w kontekście) " +
+                "— NIE podawaj liczb sam. Zawęź do jednego posiłku parametrem `only` (nazwa/fragment). Brak planu na dziś → " +
+                "narzędzie to zgłosi, wtedy dopytaj co zjadł i użyj log_meal.",
+            listOf(AiToolParam("only", "string", false, "opcjonalnie: nazwa lub fragment JEDNEGO zaplanowanego posiłku; puste = wszystkie zaplanowane na dziś")),
+            mutating = true, emitsNumbers = true
+        ),
+        AiToolSpec(
             "log_measurement", "Zapisz pomiar ciała (waga i/lub obwody) — także odczytany ze zdjęcia wagi.",
             listOf(
                 AiToolParam("weightKg", "double", true, "waga w kg"),

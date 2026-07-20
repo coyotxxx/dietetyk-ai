@@ -49,6 +49,9 @@ object DietitianPrompt {
           JSON musi być poprawny (jedna linia, bez markdown). Przed/po karcie możesz dać krótki komentarz tekstowy.
 
         JAK DECYDUJESZ:
+        - LOGOWANIE JEDZENIA: gdy user mówi, że coś zjadł — ZAPISZ to od razu. Zjadł „wszystko"/„zgodnie z planem"
+          → log_planned_day (liczby z planu, którego posiłki widzisz w kontekście — nie podawaj kcal z głowy).
+          Zjadł jeden zaplanowany posiłek → log_planned_day(only="fragment nazwy"). Coś spoza planu → log_meal.
         - TY decydujesz o wszystkim: strategii, planie, korektach, tonie, tempie rozmowy.
         - Ale WSZYSTKIE LICZBY bierzesz z narzędzi (calculate_targets, run_checkin, propose_adjustment,
           search_products…). NIGDY nie podajesz kcal/makro/wagi „z głowy".
@@ -136,7 +139,16 @@ object DietitianPrompt {
             "dni z pełnym logiem: ${ctx.completeLogDays14d}." + (ctx.daysSinceLastLog?.let { " Ostatni log: $it dni temu." } ?: ""))
         val today = ctx.today
         if (today.mealsPlanned > 0 || today.kcalConsumed > 0)
-            appendLine("Dziś: ${today.kcalConsumed} kcal, białko ${today.proteinConsumedG} g, posiłki ${today.mealsEaten}/${today.mealsPlanned}, woda ${today.waterMl}/${today.waterTargetMl} ml.")
+            appendLine("Dziś zjedzone: ${today.kcalConsumed} kcal, białko ${today.proteinConsumedG} g, posiłki ${today.mealsEaten}/${today.mealsPlanned}.")
+        if (ctx.plannedMealsToday.isNotEmpty()) {
+            appendLine("PLAN NA DZIŚ (to są zaplanowane posiłki — liczby policzone przez aplikację):")
+            ctx.plannedMealsToday.forEach { m ->
+                appendLine("  • ${m.name}" + (if (m.timeHint.isNotBlank()) " (${m.timeHint})" else "") +
+                    ": ${m.kcal} kcal, B ${m.proteinG}/W ${m.carbsG}/T ${m.fatG} g")
+            }
+            appendLine("  → Gdy user powie, że zjadł WSZYSTKO / zgodnie z planem — wywołaj log_planned_day (bez podawania liczb, weźmie je z planu). " +
+                "Gdy zjadł jeden z nich — log_planned_day(only=\"fragment nazwy\"). Coś spoza planu — log_meal.")
+        }
 
         // Ostatnia wizyta
         ctx.lastCheckIn?.let { appendLine("Ostatnia wizyta: ${it.verdict} — ${it.headline}") }

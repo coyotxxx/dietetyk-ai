@@ -19,6 +19,19 @@ data class DaySnapshot(
 )
 
 /**
+ * Pojedynczy posiłek ZAPLANOWANY na dziś (z aktualnego planu). Liczby policzone przez kod (baza produktów) —
+ * AI ich nie wymyśla; dzięki temu widzi, co znaczy „zjadłem wszystko", i loguje to bez zgadywania.
+ */
+data class PlannedMeal(
+    val name: String,
+    val timeHint: String = "",
+    val kcal: Int = 0,
+    val proteinG: Int = 0,
+    val carbsG: Int = 0,
+    val fatG: Int = 0
+)
+
+/**
  * KOMPLETNY kontekst, który AI-dietetyk widzi w KAŻDEJ rozmowie (dyrektywa Macieja 2026-07-05:
  * „AI ma dostęp do WSZYSTKICH danych"). Wszystkie liczby policzone deterministycznie przez
  * `:core-domain` — AI ich nie wymyśla, tylko INTERPRETUJE i DECYDUJE.
@@ -48,6 +61,8 @@ data class DietitianContext(
     val avgIntakeKcal14d: Int? = null,
     val daysSinceLastLog: Int? = null,
     val today: DaySnapshot = DaySnapshot(),
+    /** Posiłki zaplanowane na dziś (z aktualnego planu). Puste = brak planu na dziś. */
+    val plannedMealsToday: List<PlannedMeal> = emptyList(),
     // === WIZYTA / BEZPIECZEŃSTWO ===
     val lastCheckIn: CheckInReport? = null,
     /** Sygnał alarmowy z RedFlagDetector — jeśli refer=true, AI MUSI kierować do lekarza (nadrzędne). */

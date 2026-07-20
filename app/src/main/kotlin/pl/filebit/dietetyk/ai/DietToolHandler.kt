@@ -50,6 +50,7 @@ class DietToolHandler(
             "calculate_targets" -> calculateTargets(now)
             "log_measurement" -> logMeasurement(input, now)
             "log_meal" -> logMeal(input, now)
+            "log_planned_day" -> logPlannedDay(input, now)
             "save_visit_note" -> saveVisitNote(input, now)
             "save_profile" -> saveProfile(input, now)
             "get_history" -> history(now)
@@ -93,6 +94,41 @@ class DietToolHandler(
         )
         val name = input.string("name")?.let { " ($it)" } ?: ""
         return ToolResult("Zapisałem posiłek$name: $kcal kcal.")
+    }
+
+    /**
+     * Loguje posiłki ZAPLANOWANE na dziś (gdy user mówi „zjadłem wszystko / zgodnie z planem"). Liczby biorą
+     * się z planu (policzone wcześniej przez kod z bazy produktów) — AI nie przepisuje kcal. `only` = jeden posiłek.
+     * Każdy zaplanowany posiłek → osobny wiersz energy_logs (spójnie z log_meal); dzięki temu dzień staje się
+     * KOMPLETNY i odblokowuje adaptacyjny TDEE, adherencję oraz guardrail bezpieczeństwa.
+     */
+    private suspend fun logPlannedDay(input: JsonObject, now: Long): ToolResult {
+        val planJson = app.database.planDao().get()?.planJson
+            ?: return ToolResult("Brak zapisanego planu na dziś — zapytaj usera, co konkretnie zjadł, i użyj log_meal.", isError = true)
+        val meals = pl.filebit.dietetyk.ui.PlanData.mealsForDay(planJson, pl.filebit.dietetyk.ui.PlanData.todayDow())
+            ?.mapNotNull { it as? JsonObject } ?: emptyList()
+        if (meals.isEmpty()) return ToolResult("Na dziś nie ma zaplanowanych posiłków — zapytaj, co zjadł, i użyj log_meal.", isError = true)
+
+        val only = input.string("only")?.trim()?.lowercase()
+        val selected = if (only.isNullOrBlank()) meals
+            else meals.filter { (it.string("name") ?: "").lowercase().contains(only) }
+        if (selected.isEmpty()) {
+            val names = meals.joinToString(", ") { it.string("name") ?: "?" }
+            return ToolResult("Nie znalazłem w dzisiejszym planie posiłku pasującego do „$only”. Zaplanowane na dziś: $names.", isError = true)
+        }
+
+        var k = 0; var pr = 0; var c = 0; var f = 0
+        selected.forEach { m ->
+            val kcal = m.int("kcal") ?: 0
+            val p = m.int("proteinG") ?: 0; val cc = m.int("carbsG") ?: 0; val ff = m.int("fatG") ?: 0
+            app.database.energyLogDao().insert(
+                EnergyLogEntity(dateMs = now, kcalConsumed = kcal, isComplete = false, proteinG = p, carbsG = cc, fatG = ff)
+            )
+            k += kcal; pr += p; c += cc; f += ff
+        }
+        val what = if (only.isNullOrBlank()) "cały zaplanowany dzień (${selected.size} posiłków)"
+            else "${selected.size} posiłek/posiłki z planu"
+        return ToolResult("Zapisałem $what: $k kcal — B ${pr}g / W ${c}g / T ${f}g.")
     }
 
     private suspend fun saveVisitNote(input: JsonObject, now: Long): ToolResult {
