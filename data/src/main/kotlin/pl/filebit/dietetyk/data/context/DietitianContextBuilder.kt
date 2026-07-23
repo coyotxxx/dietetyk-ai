@@ -102,12 +102,34 @@ class DietitianContextBuilder(
         // Migawka DZIŚ (realna — dotąd była pusta): zjedzone kcal/białko/posiłki + ile zaplanowano.
         val todayStart = dayStart(nowMs)
         val todayRows = rawLogs.filter { dayStart(it.dateMs) == todayStart }
+        val hmFmt = java.time.format.DateTimeFormatter.ofPattern("HH:mm").withZone(zone)
+        val todayKcal = todayRows.sumOf { it.kcalConsumed }
         val todaySnapshot = DaySnapshot(
-            kcalConsumed = todayRows.sumOf { it.kcalConsumed },
+            kcalConsumed = todayKcal,
             proteinConsumedG = todayRows.sumOf { it.proteinG },
             mealsEaten = todayRows.size,
-            mealsPlanned = plannedToday.size
+            mealsPlanned = plannedToday.size,
+            // ITEMIZACJA: AI dostaje surowe wpisy (godzina/kcal/makro) — może sam rozpoznać duplikaty/błąd.
+            loggedMeals = todayRows.sortedBy { it.dateMs }.map {
+                pl.filebit.dietetyk.core.aicontract.LoggedMeal(
+                    id = it.id, timeHm = hmFmt.format(java.time.Instant.ofEpochMilli(it.dateMs)),
+                    kcal = it.kcalConsumed, proteinG = it.proteinG, carbsG = it.carbsG, fatG = it.fatG
+                )
+            }
         )
+        // GUARDRAIL INTEGRALNOŚCI (kod flaguje, AI bada): suma dnia ≫ celu albo dużo więcej wpisów niż posiłków
+        // planu → prawdopodobny błąd apki (duplikaty po edycjach). Nigdy nie chowamy tego przed AI.
+        val expectedMeals = plannedToday.size.takeIf { it > 0 } ?: (profile.mealsPerDay ?: 0)
+        val todayDataWarning: String? = when {
+            goal.kcal > 0 && todayKcal > goal.kcal * 1.5 && todayRows.size > 1 ->
+                "Dziś zalogowano ${todayRows.size} wpisów na łącznie $todayKcal kcal — to ${(todayKcal * 100 / goal.kcal)}% celu (${goal.kcal} kcal). " +
+                    "To wygląda na możliwy BŁĄD APKI (duplikaty po edycjach planu), nie realne spożycie. NAJPIERW zbadaj get_day_log i zapytaj usera, co faktycznie zjadł — nie interpretuj tej liczby jako prawdy."
+            expectedMeals > 0 && todayRows.size > expectedMeals * 2 ->
+                "Dziś ${todayRows.size} wpisów przy ${expectedMeals} zaplanowanych posiłkach — możliwe duplikaty. Zbadaj get_day_log przed interpretacją."
+            else -> null
+        }
+        // FLAGA PLACEHOLDERA WAGI: brak realnego pomiaru ORAZ brak wagi w profilu → cel stoi na założonej wadze.
+        val weightIsPlaceholder = weights.maxByOrNull { it.dateMs }?.weightKg == null && profile.weightKg == null
         // Pamięć miękka: tylko ŚWIEŻE notatki (≤21 dni) z wiekiem — stary kontekst wygasa,
         // żeby AI nie nawiązywało do stresu sprzed miesiąca („recency-aware", nie inwigilacja).
         val memoryNotes = runCatching {
@@ -143,7 +165,9 @@ class DietitianContextBuilder(
             favoriteProducts = favorites,
             avoidedProducts = avoided,
             hasActivePlan = hasPlan,
-            plannedMealsToday = plannedToday
+            plannedMealsToday = plannedToday,
+            weightIsPlaceholder = weightIsPlaceholder,
+            todayDataWarning = todayDataWarning
         )
     }
 

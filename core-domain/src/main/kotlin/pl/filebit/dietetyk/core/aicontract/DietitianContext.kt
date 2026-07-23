@@ -15,7 +15,20 @@ data class DaySnapshot(
     val mealsEaten: Int = 0,
     val mealsPlanned: Int = 0,
     val waterMl: Int = 0,
-    val waterTargetMl: Int = 2000
+    val waterTargetMl: Int = 2000,
+    /** ITEMIZACJA — każdy realnie zalogowany dziś wpis (dyrektywa: AI ma dostęp do WSZYSTKICH danych,
+     *  nie tylko sumy). Dzięki temu AI widzi np. 5 identycznych wierszy i samo rozpozna duplikaty. */
+    val loggedMeals: List<LoggedMeal> = emptyList()
+)
+
+/** Pojedynczy REALNIE zalogowany wpis (wiersz energy_logs) — surowe dane, żeby AI mogło je zweryfikować. */
+data class LoggedMeal(
+    val id: Long,
+    val timeHm: String,      // godzina zalogowania „HH:mm"
+    val kcal: Int,
+    val proteinG: Int = 0,
+    val carbsG: Int = 0,
+    val fatG: Int = 0
 )
 
 /**
@@ -63,6 +76,12 @@ data class DietitianContext(
     val today: DaySnapshot = DaySnapshot(),
     /** Posiłki zaplanowane na dziś (z aktualnego planu). Puste = brak planu na dziś. */
     val plannedMealsToday: List<PlannedMeal> = emptyList(),
+    /** TRUE = cel policzony na ZAŁOŻONEJ wadze (brak realnego pomiaru i brak wagi w profilu).
+     *  AI MUSI to ujawnić i zdobyć realną wagę — cel jest tymczasowy, nie wolno go podawać jako pewnik. */
+    val weightIsPlaceholder: Boolean = false,
+    /** Ostrzeżenie o możliwym błędzie integralności danych dnia (np. suma >150% celu, podejrzane duplikaty).
+     *  Kod tylko FLAGUJE — AI ma to ZBADAĆ (get_day_log) i naprawić z userem, nigdy zbagatelizować. */
+    val todayDataWarning: String? = null,
     // === WIZYTA / BEZPIECZEŃSTWO ===
     val lastCheckIn: CheckInReport? = null,
     /** Sygnał alarmowy z RedFlagDetector — jeśli refer=true, AI MUSI kierować do lekarza (nadrzędne). */

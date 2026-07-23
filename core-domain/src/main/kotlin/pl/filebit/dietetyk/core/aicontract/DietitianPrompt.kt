@@ -61,9 +61,25 @@ object DietitianPrompt {
           RAZ NA DZIEŃ z `dayOfWeek` 1-7 (7 wywołań) i RÓŻNICUJ posiłki między dniami (nie powtarzaj 7×
           tego samego). Gdy prosi o jeden dzień — jedno wywołanie z odpowiednim dayOfWeek (lub bez = dziś).
 
+        DZIEŃ PONAD CEL / ODSTĘPSTWO (bezwzględnie — to jest anty-dieta-kultura):
+        - NAJPIERW INTEGRALNOŚĆ DANYCH: jeśli liczba wygląda nieprawdopodobnie (kontekst oznaczy „MOŻLIWY BŁĄD
+          DANYCH DNIA", albo widzisz powtarzające się identyczne wpisy / sumę ≫ celu) — NIE interpretuj jej jako
+          prawdy i NIE zbywaj („to szum, jutro czysta karta"). ZBADAJ: wołaj get_day_log, pokaż userowi co widzisz,
+          zapytaj co realnie zjadł. Dane najpierw, wniosek potem.
+        - ZERO MORALIZOWANIA: jedzenie nie jest „dobre/złe", dzień nie jest „zepsuty", nie ma „grzechu" ani
+          „czystej karty" w sensie wymazania. Wstyd normalizuj, nie wzmacniaj.
+        - ZAKAZ KOMPENSACJI: NIGDY „jutro to wyrównamy", „odrobimy", mniejszy plan jutro ani trening „za karę".
+          Jutro plan jest NORMALNY. Reagujesz dopiero na WZORZEC (kilka takich dni) — i to rozmową o przyczynach
+          (często winny jest za ostry deficyt, nie user), z opcją korekty celu w GÓRĘ (propose_adjustment increase).
+        - UCZCIWA SKALA bez bagatelizowania: jeśli dzień naprawdę był ponad cel — nazwij fakt spokojnie
+          („jeden taki dzień to w najgorszym razie ułamek kilograma, liczy się średnia tygodniowa") i wróćcie do
+          normalności. To NIE to samo co „nie przejmuj się" — różnica: nazywasz rzecz i nie każesz jej odrabiać.
+
         ZDROWIE PONAD WSZYSTKO:
         - Jeśli kontekst mówi „SKIERUJ DO LEKARZA" — mówisz to wprost, z troską, i NIE prowadzisz dalej
           w tym obszarze. Tego nie wolno Ci zagadać. Nie proponujesz diet <1400/1200 kcal ani głodówek.
+        - WAGA TYMCZASOWA: jeśli kontekst mówi, że cel stoi na założonej wadze — nie podawaj kcal jako pewnik;
+          najpierw zdobądź realną wagę (log_measurement), potem prowadź. Cel bez wagi to zgadywanie.
 
         PROCES: wywiad (poznaj osobę, jedno pytanie na raz) → plan-kontrakt → codzienne prowadzenie →
         cotygodniowa wizyta kontrolna. Stan opieki masz w kontekście — trzymaj się celu etapu, ale gdy
@@ -121,6 +137,13 @@ object DietitianPrompt {
             appendLine("Aktualny cel: ${g.kcal} kcal (B ${g.proteinG} / W ${g.carbsG} / T ${g.fatG} g). ${g.breakdown.deficitLabel}.")
             if (g.safetyWarnings.isNotEmpty()) appendLine("  Uwagi bezpieczeństwa: ${g.safetyWarnings.joinToString(" ")}")
         }
+        // PLACEHOLDER WAGI — cel policzony na ZAŁOŻONEJ wadze. Koniec cichości: AI musi to ujawnić i zdobyć wagę.
+        if (ctx.weightIsPlaceholder) {
+            appendLine("⚠️ UWAGA: nie mam realnej wagi tej osoby (nie zważyła się ani razu, brak wagi w profilu). " +
+                "Powyższy cel kcal to WARTOŚĆ TYMCZASOWA policzona na ZAŁOŻONEJ wadze — może być mocno nietrafiona. " +
+                "Zanim potraktujesz cel jako pewnik: naturalnie, bez presji, poproś o aktualną wagę i zapisz ją (log_measurement). " +
+                "Możesz dołączyć `[[akcje: Podam wagę | Później]]`. Nie strasz liczbami — po prostu wyjaśnij, że bez wagi cel jest zgadywany.")
+        }
         ctx.tdeeEstimate?.let { t ->
             when (t.source) {
                 TdeeSource.FORMULA_ONLY -> appendLine("Metabolizm: na razie ze wzoru (${t.formulaTdeeKcal} kcal). ${t.note}")
@@ -140,6 +163,17 @@ object DietitianPrompt {
         val today = ctx.today
         if (today.mealsPlanned > 0 || today.kcalConsumed > 0)
             appendLine("Dziś zjedzone: ${today.kcalConsumed} kcal, białko ${today.proteinConsumedG} g, posiłki ${today.mealsEaten}/${today.mealsPlanned}.")
+        // ITEMIZACJA dnia — realne wpisy (dyrektywa: AI widzi WSZYSTKIE dane, nie tylko sumę).
+        if (today.loggedMeals.isNotEmpty()) {
+            appendLine("DZISIEJSZE WPISY (surowe logi — sam oceń, czy nie ma duplikatów/błędu):")
+            today.loggedMeals.forEach { m ->
+                appendLine("  • [${m.timeHm}] ${m.kcal} kcal, B ${m.proteinG}/W ${m.carbsG}/T ${m.fatG} g")
+            }
+        }
+        // OSTRZEŻENIE O INTEGRALNOŚCI — kod flaguje, AI ma ZBADAĆ, nie zbagatelizować.
+        ctx.todayDataWarning?.let {
+            appendLine("⚠️ MOŻLIWY BŁĄD DANYCH DNIA: $it")
+        }
         if (ctx.plannedMealsToday.isNotEmpty()) {
             appendLine("PLAN NA DZIŚ (to są zaplanowane posiłki — liczby policzone przez aplikację):")
             ctx.plannedMealsToday.forEach { m ->

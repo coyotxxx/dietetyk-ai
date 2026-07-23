@@ -54,6 +54,7 @@ class DietToolHandler(
             "save_visit_note" -> saveVisitNote(input, now)
             "save_profile" -> saveProfile(input, now)
             "get_history" -> history(now)
+            "get_day_log" -> dayLog(input, now)
             "run_checkin" -> runCheckin(now)
             "save_diet_plan" -> saveDietPlan(input, now)
             "search_products" -> searchProducts(input)
@@ -164,6 +165,29 @@ class DietToolHandler(
         // Pierwsza realna kopia zapasowa od razu po utworzeniu profilu (auto-worker startuje dopiero za dobę).
         runCatching { pl.filebit.dietetyk.Backup.writeLocalBackup(app, app) }
         return ToolResult("Zapisałem profil.")
+    }
+
+    /**
+     * Itemizacja dnia — surowe wpisy energy_logs (godzina/kcal/makro/id). Pozwala AI ZOBACZYĆ duplikaty
+     * i zweryfikować podejrzaną sumę, zamiast zgadywać. Read-only (kasowanie/edycja dojdą w v1.21).
+     */
+    private suspend fun dayLog(input: JsonObject, now: Long): ToolResult {
+        val zone = java.time.ZoneId.systemDefault()
+        val date = input.string("date")?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
+            ?: java.time.Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
+        val dayStart = date.atStartOfDay(zone).toInstant().toEpochMilli()
+        val dayEnd = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val rows = app.database.energyLogDao().since(dayStart).filter { it.dateMs < dayEnd }.sortedBy { it.dateMs }
+        if (rows.isEmpty()) return ToolResult("Brak zalogowanych wpisów na $date.")
+        val hm = java.time.format.DateTimeFormatter.ofPattern("HH:mm").withZone(zone)
+        val sum = rows.sumOf { it.kcalConsumed }
+        val target = app.database.planDao().get()?.targetKcal ?: 0
+        val lines = rows.joinToString("\n") { r ->
+            "• id=${r.id} [${hm.format(java.time.Instant.ofEpochMilli(r.dateMs))}] ${r.kcalConsumed} kcal, B ${r.proteinG}/W ${r.carbsG}/T ${r.fatG} g"
+        }
+        val flag = if (target > 0 && sum > target * 1.5 && rows.size > 1)
+            "\n⚠️ Suma ${sum} kcal to ${sum * 100 / target}% celu ($target) przy ${rows.size} wpisach — sprawdź, czy to nie duplikaty po edycjach planu. Zapytaj usera, co realnie zjadł." else ""
+        return ToolResult("Wpisy z $date (${rows.size}, razem $sum kcal):\n$lines$flag")
     }
 
     private suspend fun history(now: Long): ToolResult {

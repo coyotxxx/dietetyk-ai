@@ -59,4 +59,56 @@ class DietitianContextAssemblerTest {
         assertTrue("red-flag → skierowanie", ctx.referToDoctor)
         assertTrue("komunikat wypełniony", ctx.redFlagMessage.isNotBlank())
     }
+
+    // === v1.20 — hotfix: itemizacja, ostrzeżenie o integralności, placeholder wagi ===
+    private fun baseCtx(
+        today: DaySnapshot = DaySnapshot(),
+        weightIsPlaceholder: Boolean = false,
+        todayDataWarning: String? = null
+    ) = DietitianContextAssembler.assemble(
+        careState = CareState(CareStage.ACTIVE),
+        profile = profile, clinical = ClinicalContext.NONE,
+        weightSamples = weights(), energyLogs = logs(2100),
+        memoryNotes = emptyList(), adherence14d = AdherenceSummary(),
+        today = today, lastCheckIn = null, daysSinceLastLog = 0, nowMs = now
+    ).copy(weightIsPlaceholder = weightIsPlaceholder, todayDataWarning = todayDataWarning)
+
+    @Test
+    fun `render pokazuje itemizacje dzisiejszych wpisow`() {
+        val ctx = baseCtx(today = DaySnapshot(
+            kcalConsumed = 914, mealsEaten = 2, mealsPlanned = 4,
+            loggedMeals = listOf(
+                LoggedMeal(1, "07:15", 457, 17, 60, 16),
+                LoggedMeal(2, "10:11", 457, 17, 60, 16)  // duplikat
+            )
+        ))
+        val out = DietitianPrompt.renderContext(ctx)
+        assertTrue("itemizacja obecna", out.contains("DZISIEJSZE WPISY"))
+        assertTrue("wpis z godziną i kcal", out.contains("[07:15] 457 kcal"))
+        assertTrue("drugi (duplikat) też widoczny", out.contains("[10:11] 457 kcal"))
+    }
+
+    @Test
+    fun `render ostrzega o mozliwym bledzie danych dnia`() {
+        val ctx = baseCtx(todayDataWarning = "Dziś zalogowano 19 wpisów na łącznie 6456 kcal — to możliwy błąd apki.")
+        val out = DietitianPrompt.renderContext(ctx)
+        assertTrue("nagłówek ostrzeżenia", out.contains("MOŻLIWY BŁĄD DANYCH DNIA"))
+        assertTrue("treść przekazana", out.contains("6456 kcal"))
+    }
+
+    @Test
+    fun `render ujawnia ze cel stoi na zalozonej wadze`() {
+        val out = DietitianPrompt.renderContext(baseCtx(weightIsPlaceholder = true))
+        assertTrue("ujawnia placeholder wagi", out.contains("nie mam realnej wagi"))
+        assertTrue("cel jako tymczasowy", out.contains("WARTOŚĆ TYMCZASOWA"))
+    }
+
+    @Test
+    fun `systemPrompt zakazuje kompensacji i nakazuje badanie danych`() {
+        val sp = DietitianPrompt.systemPrompt()
+        assertTrue("zakaz kompensacji", sp.contains("ZAKAZ KOMPENSACJI"))
+        assertTrue("najpierw integralność danych", sp.contains("NAJPIERW INTEGRALNOŚĆ DANYCH"))
+        assertTrue("wskazuje get_day_log", sp.contains("get_day_log"))
+    }
+
 }

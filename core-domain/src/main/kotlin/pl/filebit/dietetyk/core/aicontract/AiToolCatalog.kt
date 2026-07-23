@@ -102,6 +102,13 @@ object AiToolCatalog {
             readsData = true, emitsNumbers = true
         ),
         AiToolSpec(
+            "get_day_log", "Pokaż SUROWE, pojedyncze wpisy spożycia z danego dnia (godzina, kcal, makra, id wpisu). " +
+                "Użyj, gdy suma dnia wygląda podejrzanie (możliwe duplikaty po edycjach) albo gdy user prosi 'sprawdź co zalogowane' — " +
+                "żeby zobaczyć itemizację i rozpoznać błąd, zamiast zgadywać z samej sumy.",
+            listOf(AiToolParam("date", "string", false, "dzień w formacie YYYY-MM-DD; pominięty = dziś")),
+            readsData = true, emitsNumbers = true
+        ),
+        AiToolSpec(
             "search_products", "Znajdź produkt w bazie lokalnej + OpenFoodFacts (po nazwie lub kodzie kreskowym).",
             listOf(AiToolParam("query", "string", true, "nazwa lub kod"), AiToolParam("barcode", "string", false, "opcjonalny kod")),
             readsData = true, emitsNumbers = true
