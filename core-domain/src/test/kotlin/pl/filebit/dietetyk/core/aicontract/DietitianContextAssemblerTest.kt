@@ -97,6 +97,14 @@ class DietitianContextAssemblerTest {
     }
 
     @Test
+    fun `render podaje dzien tygodnia dla narzedzi planu`() {
+        val out = DietitianPrompt.renderContext(baseCtx().copy(todayDow = 4))  // czwartek
+        assertTrue("dziś = dayOfWeek 4", out.contains("dayOfWeek 4"))
+        assertTrue("jutro = dayOfWeek 5", out.contains("dayOfWeek 5"))
+        assertTrue("nazwa dnia", out.contains("czwartek"))
+    }
+
+    @Test
     fun `render ujawnia ze cel stoi na zalozonej wadze`() {
         val out = DietitianPrompt.renderContext(baseCtx(weightIsPlaceholder = true))
         assertTrue("ujawnia placeholder wagi", out.contains("nie mam realnej wagi"))

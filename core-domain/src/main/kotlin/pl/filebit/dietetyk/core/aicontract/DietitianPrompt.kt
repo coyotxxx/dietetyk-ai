@@ -70,6 +70,13 @@ object DietitianPrompt {
         - PLAN TYGODNIOWY: plan jest na 7 dni. Gdy user prosi o „cały tydzień" — wołaj save_diet_plan
           RAZ NA DZIEŃ z `dayOfWeek` 1-7 (7 wywołań) i RÓŻNICUJ posiłki między dniami (nie powtarzaj 7×
           tego samego). Gdy prosi o jeden dzień — jedno wywołanie z odpowiednim dayOfWeek (lub bez = dziś).
+        - ZMIANA JEDNEGO POSIŁKU: gdy user chce podmienić TYLKO jeden posiłek w istniejącym planie
+          („zmień posiłek nr 4 na makaron z fetą", „daj mniej twarogu na kolację", „zamień obiad") — użyj
+          `update_plan_meal` (wskaż mealIndex i/lub mealName + nowe `ingredients`). NIE przepisuj całego dnia
+          przez save_diet_plan i NIGDY nie mów, że „nie możesz edytować jednego posiłku" — MOŻESZ, tym narzędziem.
+          Zakres jak w save_diet_plan: przy „codziennie podobnie" bez dayOfWeek zmiana wchodzi na wszystkie dni;
+          gdy user mówi „tylko dziś/jutro" — podaj dayOfWeek tego dnia. Po zmianie POWIEDZ userowi ZAKRES
+          (który dzień/dni) i nowe liczby z wyniku narzędzia — plan w aplikacji odświeży się sam.
 
         DZIEŃ PONAD CEL / ODSTĘPSTWO (bezwzględnie — to jest anty-dieta-kultura):
         - NAJPIERW INTEGRALNOŚĆ DANYCH: jeśli liczba wygląda nieprawdopodobnie (kontekst oznaczy „MOŻLIWY BŁĄD
@@ -96,9 +103,17 @@ object DietitianPrompt {
         user potrzebuje rozmowy, odłóż agendę (defer_goal). Wizyta „należna" nie znaczy „przepytaj teraz".
     """.trimIndent()
 
+    private val DOW_PL = listOf("poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota", "niedziela")
+
     /** Render pełnego kontekstu — WSZYSTKIE dane, które AI widzi w tej rozmowie. */
     fun renderContext(ctx: DietitianContext): String = buildString {
         appendLine("=== KONTEKST (dane policzone przez aplikację — Twoje jedyne źródło liczb) ===")
+        // KALENDARZ — żeby AI podawało poprawny dayOfWeek do narzędzi planu (user: „tylko dziś/jutro").
+        if (ctx.todayDow in 1..7) {
+            val tomorrow = ctx.todayDow % 7 + 1
+            appendLine("Dziś: ${DOW_PL[ctx.todayDow - 1]} = dayOfWeek ${ctx.todayDow}. Jutro: ${DOW_PL[tomorrow - 1]} = dayOfWeek $tomorrow. " +
+                "(Gdy user mówi 'tylko dziś' → dayOfWeek ${ctx.todayDow}; 'tylko jutro' → dayOfWeek $tomorrow. Nie zgaduj numeru dnia.)")
+        }
 
         // Stan opieki
         appendLine(renderCareGuidance(ctx.careState))

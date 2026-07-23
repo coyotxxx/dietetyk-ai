@@ -160,5 +160,15 @@ class SettingsStore(context: Context) {
         prefs.edit().putStringSet("mealstatus_$dayKey", filtered).apply()
     }
 
+    /** Przeniesienie statusu (EATEN/SKIPPED/…) na NOWĄ nazwę posiłku — po edycji posiłku w planie,
+     *  żeby zjedzony/pominięty status dnia nie osierocił się przy zmianie nazwy (znalezisko z v1.22). */
+    fun renameMealStatus(dayKey: String, oldName: String, newName: String) {
+        if (oldName == newName) return
+        val (status, logId) = mealStatus(dayKey, oldName)
+        if (status == "PLANNED") return
+        setMealStatus(dayKey, oldName, "PLANNED")   // usuń stary wpis
+        setMealStatus(dayKey, newName, status, logId)
+    }
+
     private companion object { const val KEY_API = "claude_api_key" }
 }

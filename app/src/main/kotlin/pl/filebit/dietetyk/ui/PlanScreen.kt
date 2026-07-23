@@ -183,25 +183,22 @@ private fun MealCard(app: DietetykApp, index: Int, meal: PlanMeal) {
 
 @Composable
 fun PlanScreen(app: DietetykApp, onGoToChat: () -> Unit = {}) {
-    var planJson by remember { mutableStateOf<String?>(null) }
     var meals by remember { mutableStateOf<List<PlanMeal>?>(null) }
-    var targetKcal by remember { mutableStateOf(0) }
     var loaded by remember { mutableStateOf(false) }
     var showShopping by remember { mutableStateOf(false) }
     var shoppingWeek by remember { mutableStateOf(true) }
     var selectedDay by remember { mutableStateOf(PlanData.todayDow()) }
-    var daysWithPlan by remember { mutableStateOf(emptySet<Int>()) }
-    var reloadKey by remember { mutableStateOf(0) }
     val checked = remember { androidx.compose.runtime.mutableStateMapOf<String, Boolean>() }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(reloadKey) {
-        val entity = app.database.planDao().get()
-        loaded = true
-        planJson = entity?.planJson
-        targetKcal = entity?.targetKcal ?: 0
-        daysWithPlan = entity?.let { PlanData.daysWithPlan(it.planJson) } ?: emptySet()
+    // REAKTYWNIE: obserwuj plan z Room — auto-odświeżenie po KAŻDYM zapisie (AI edytuje w czacie,
+    // copyDay, restore backupu). Koniec „zamknij i otwórz aplikację" (dawniej ręczny reloadKey + get()).
+    val planEntity by androidx.compose.runtime.produceState<pl.filebit.dietetyk.data.db.PlanEntity?>(initialValue = null) {
+        app.database.planDao().observe().collect { value = it; loaded = true }
     }
+    val planJson = planEntity?.planJson
+    val targetKcal = planEntity?.targetKcal ?: 0
+    val daysWithPlan = remember(planJson) { planJson?.let { PlanData.daysWithPlan(it) } ?: emptySet() }
     // Parsowanie posiłków wybranego dnia (reaguje na zmianę dnia i przeładowanie planu).
     LaunchedEffect(planJson, selectedDay) {
         val pj = planJson
@@ -255,7 +252,7 @@ fun PlanScreen(app: DietetykApp, onGoToChat: () -> Unit = {}) {
                                     val newJson = PlanData.copyDay(pj, src, selectedDay, targetKcal) ?: return@clickable
                                     scope.launch {
                                         app.database.planDao().upsert(PlanEntity(planJson = newJson, targetKcal = targetKcal, updatedAt = System.currentTimeMillis(), dirty = true))
-                                        reloadKey++
+                                        // odświeżenie automatyczne przez observe()
                                     }
                                 }.padding(horizontal = 12.dp, vertical = 8.dp)
                             ) { Text(DOW_SHORT[src - 1], color = Palette.TextDark, fontSize = 13.sp, fontWeight = FontWeight.Bold) }

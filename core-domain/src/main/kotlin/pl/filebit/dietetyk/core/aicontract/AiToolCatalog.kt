@@ -68,6 +68,24 @@ object AiToolCatalog {
             mutating = true, emitsNumbers = true
         ),
         AiToolSpec(
+            "update_plan_meal", "Podmień JEDEN posiłek w istniejącym planie — BEZ wysyłania całego dnia. Użyj gdy user chce " +
+                "zmienić tylko jeden posiłek (np. 'zmień posiłek nr 4 na makaron z fetą' albo 'daj mniej twarogu na kolację'). " +
+                "Wskaż posiłek przez mealIndex (1..N, np. 'nr 4') i/lub mealName (fragment nazwy) — podaj OBA jeśli możesz " +
+                "(kod zweryfikuje). Podaj nowe `ingredients` (jak w save_diet_plan) — silnik przeliczy kcal/makro z bazy. " +
+                "ZAKRES jak w save_diet_plan: przy SAME_DAILY bez `dayOfWeek` podmienia we wszystkich dniach; z `dayOfWeek` " +
+                "tylko w tym dniu. NIE używaj do dodawania/usuwania posiłku (zmiany liczby) — to przez save_diet_plan.",
+            listOf(
+                AiToolParam("mealIndex", "int", false, "który posiłek dnia (1..N, np. 4 = 'posiłek nr 4')"),
+                AiToolParam("mealName", "string", false, "fragment nazwy edytowanego posiłku (weryfikacja/alternatywa dla indeksu)"),
+                AiToolParam("name", "string", false, "NOWA nazwa posiłku (pominięta = zostaje stara)"),
+                AiToolParam("ingredients", "array", true, "składniki nowego posiłku: [{\"productName\":\"Makaron\",\"grams\":80},{\"productName\":\"Feta\",\"grams\":50}]"),
+                AiToolParam("timeHint", "string", false, "godzina (np. '18:00'); pominięta = zostaje stara"),
+                AiToolParam("prepMinutes", "int", false, "czas przygotowania w minutach"),
+                AiToolParam("dayOfWeek", "int", false, "dzień 1-7; pominięty = dziś (przy SAME_DAILY = wszystkie dni)")
+            ),
+            mutating = true, emitsNumbers = true
+        ),
+        AiToolSpec(
             "log_meal", "Zapisz zjedzony posiłek. Podaj kcal oraz makro (policz je z produktów przez search_products jeśli trzeba).",
             listOf(
                 AiToolParam("kcal", "int", true, "kalorie posiłku"),

@@ -76,6 +76,9 @@ data class DietitianContext(
     val today: DaySnapshot = DaySnapshot(),
     /** Posiłki zaplanowane na dziś (z aktualnego planu). Puste = brak planu na dziś. */
     val plannedMealsToday: List<PlannedMeal> = emptyList(),
+    /** Dzień tygodnia DZIŚ (1=Pn…7=Nd) — żeby AI podawało poprawny `dayOfWeek` do narzędzi planu
+     *  (update_plan_meal/save_diet_plan), gdy user mówi „tylko dziś/jutro". Bez tego AI zgadywało (myliło dni). */
+    val todayDow: Int = 0,
     /** TRUE = cel policzony na ZAŁOŻONEJ wadze (brak realnego pomiaru i brak wagi w profilu).
      *  AI MUSI to ujawnić i zdobyć realną wagę — cel jest tymczasowy, nie wolno go podawać jako pewnik. */
     val weightIsPlaceholder: Boolean = false,

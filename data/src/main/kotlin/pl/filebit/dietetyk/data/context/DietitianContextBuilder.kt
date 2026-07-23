@@ -167,7 +167,8 @@ class DietitianContextBuilder(
             hasActivePlan = hasPlan,
             plannedMealsToday = plannedToday,
             weightIsPlaceholder = weightIsPlaceholder,
-            todayDataWarning = todayDataWarning
+            todayDataWarning = todayDataWarning,
+            todayDow = dowOf(nowMs)
         )
     }
 

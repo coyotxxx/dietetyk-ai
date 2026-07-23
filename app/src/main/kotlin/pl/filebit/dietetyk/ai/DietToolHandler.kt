@@ -59,6 +59,7 @@ class DietToolHandler(
             "delete_meal_log" -> deleteMealLog(input, now)
             "run_checkin" -> runCheckin(now)
             "save_diet_plan" -> saveDietPlan(input, now)
+            "update_plan_meal" -> updatePlanMeal(input, now)
             "search_products" -> searchProducts(input)
             "add_missing_product" -> addMissingProduct(input)
             "set_food_preference" -> setFoodPreference(input)
@@ -466,6 +467,142 @@ class DietToolHandler(
         val scope = if (replicated) "na cały tydzień (ten sam dzień codziennie — user woli powtarzalność)"
             else "na ${pl.filebit.dietetyk.ui.DOW_LONG[dow - 1]}"
         return ToolResult("Zapisałem plan $scope (przeliczony z bazy): ${plan.meals.size} posiłków, ${ct.totalKcal} kcal — B ${ct.totalProteinG}g / W ${ct.totalCarbsG}g / T ${ct.totalFatG}g (cel ${goal.kcal} kcal).$warn")
+    }
+
+    /**
+     * EDYCJA POJEDYNCZEGO POSIŁKU w planie (bez wysyłania całego dnia). Rozwiązuje skargę: „AI nie umie
+     * edytować jednego posiłku". Kod czyta istniejący dzień, podmienia TYLKO wskazany posiłek (indeks 1..N
+     * i/lub nazwa, z weryfikacją krzyżową), przelicza kcal/makro z bazy, waliduje (tylko twarde zasady),
+     * zachowuje cel dnia. Zakres LUSTRZANY do save_diet_plan: brak dayOfWeek + SAME_DAILY = wszystkie dni.
+     */
+    private suspend fun updatePlanMeal(input: JsonObject, now: Long): ToolResult {
+        val planEntity = app.database.planDao().get()
+            ?: return ToolResult("Brak zapisanego planu — najpierw ułóż plan (save_diet_plan).", isError = true)
+        val profile = app.profileRepo.get() ?: return ToolResult("Brak profilu.", isError = true)
+
+        val dowParam = input.int("dayOfWeek")?.coerceIn(1, 7)
+        val weeklyMode = dowParam != null
+        val editDow = dowParam ?: pl.filebit.dietetyk.ui.PlanData.todayDow()
+
+        val dayMeals = pl.filebit.dietetyk.ui.PlanData.mealsForDay(planEntity.planJson, editDow)
+            ?.mapNotNull { it as? JsonObject } ?: emptyList()
+        if (dayMeals.isEmpty())
+            return ToolResult("Na ${pl.filebit.dietetyk.ui.DOW_LONG[editDow - 1]} nie ma jeszcze planu do edycji — użyj save_diet_plan.", isError = true)
+
+        fun numbered() = dayMeals.mapIndexed { i, m -> "${i + 1}. ${m.string("name") ?: "?"}" }.joinToString("; ")
+        val idxParam = input.int("mealIndex")
+        val nameParam = input.string("mealName")
+        val targetIndex: Int = when {
+            idxParam != null -> {
+                val i = idxParam - 1
+                if (i !in dayMeals.indices) return ToolResult("Nie ma posiłku nr $idxParam. Posiłki: ${numbered()}.", isError = true)
+                if (nameParam != null && !(dayMeals[i].string("name") ?: "").contains(nameParam, ignoreCase = true))
+                    return ToolResult("Posiłek nr $idxParam to '${dayMeals[i].string("name")}', nie '$nameParam'. Posiłki: ${numbered()}.", isError = true)
+                i
+            }
+            nameParam != null -> {
+                val hits = dayMeals.indices.filter { (dayMeals[it].string("name") ?: "").contains(nameParam, ignoreCase = true) }
+                when {
+                    hits.isEmpty() -> return ToolResult("Nie znalazłem posiłku '$nameParam'. Posiłki: ${numbered()}.", isError = true)
+                    hits.size > 1 -> return ToolResult("'$nameParam' pasuje do kilku posiłków — podaj mealIndex. Posiłki: ${numbered()}.", isError = true)
+                    else -> hits.first()
+                }
+            }
+            else -> return ToolResult("Podaj który posiłek edytujesz: mealIndex (1..${dayMeals.size}) lub mealName. Posiłki: ${numbered()}.", isError = true)
+        }
+
+        val newIngs = input["ingredients"] as? JsonArray
+            ?: return ToolResult("Podaj ingredients (składniki nowego posiłku, jak w save_diet_plan).", isError = true)
+        val oldName = dayMeals[targetIndex].string("name") ?: "Posiłek"
+        val newName = input.string("name") ?: oldName
+        val timeHint = input.string("timeHint") ?: dayMeals[targetIndex].string("timeHint") ?: ""
+        val prepMinutes = input.int("prepMinutes") ?: 0
+
+        val entities = app.database.foodProductDao().all()
+        val byName = entities.associate { e -> e.name.lowercase() to FoodProductModel(id = e.id, name = e.name, kcalPer100g = e.kcal, proteinPer100g = e.proteinG, carbsPer100g = e.carbsG, fatPer100g = e.fatG) }
+        val catByName = entities.associate { it.name.lowercase() to it.category }
+        val newMealJson = computeMealJson(newName, timeHint, prepMinutes, newIngs, byName, catByName)
+
+        val newDayMeals = dayMeals.toMutableList().apply { this[targetIndex] = newMealJson }
+        val newDayArray = JsonArray(newDayMeals)
+
+        // Walidacja: TYLKO twarde zasady (alergie/nie-jem/bezpieczeństwo). Drift celu = ostrzeżenie, nie blok.
+        val recipes = newDayMeals.map { m ->
+            val ings = (m["ings"] as? JsonArray)?.mapNotNull { it as? JsonObject }?.map { io ->
+                AiRecipeIngredient(io.string("name") ?: "", io.int("grams") ?: 0)
+            } ?: emptyList()
+            AiMealRecipe(m.string("name") ?: "Posiłek", 0, 0, ings)
+        }
+        val goal = GoalPipeline.compute(profile, latestMeasuredWeightKg = app.weightRepo.latest()?.weightKg)
+        val avoidedNorms = entities.filter { it.preference == pl.filebit.dietetyk.data.db.Pref.AVOID }.map { FoodProductSeed.normalize(it.name) }.toSet()
+        val stubNorms = entities.filter { it.source == "stub" }.map { FoodProductSeed.normalize(it.name) }.toSet()
+        val constraints = pl.filebit.dietetyk.core.plan.ConstraintResolver.resolve(
+            gender = profile.gender,
+            prefs = pl.filebit.dietetyk.core.plan.DietPreferences(allergies = profile.allergens, dietPreference = profile.dietType),
+            clinical = ClinicalContext.NONE
+        )
+        val vctx = ValidationContext(
+            expectedMealsCount = recipes.size, targetKcal = goal.kcal, targetProteinG = goal.proteinG,
+            targetCarbsG = goal.carbsG, targetFatG = goal.fatG, perMealProteinMinG = 0, maxCookingMinutesPerMeal = 240,
+            productsByName = byName, avoidedNorms = avoidedNorms, stubNorms = stubNorms, constraints = constraints,
+            minUniqueProductsPerDay = 0, likedNorms = emptySet(), firstPlan = false
+        )
+        val result = PlanValidator.validate(AiDayPlan(recipes), vctx)
+        val blockingCodes = setOf("avoided_product", "stub_ingredient", "hard_constraint_violation", "safety_kcal_too_low", "keto_carbs_exceeded", "egg_white_split_not_allowed")
+        val blocking = result.errors.filter { it.code in blockingCodes }
+        if (blocking.isNotEmpty()) {
+            val msgs = blocking.map { it.message }.distinct().take(4).joinToString(" ")
+            return ToolResult("NIE ZMIENIŁEM — nowy posiłek narusza twarde zasady (alergie / nie-jem / bezpieczeństwo): $msgs Zaproponuj inny wariant.", isError = true)
+        }
+
+        val replicated = !weeklyMode && profile.varietyMode == pl.filebit.dietetyk.core.model.VarietyMode.SAME_DAILY
+        val keepTarget = planEntity.targetKcal
+        var json = planEntity.planJson
+        val days = if (replicated) (1..7).toList() else listOf(editDow)
+        days.forEach { d -> json = pl.filebit.dietetyk.ui.PlanData.setDayMeals(json, d, newDayArray, keepTarget) }
+        app.database.planDao().upsert(PlanEntity(planJson = json, targetKcal = keepTarget, updatedAt = now, dirty = true))
+
+        if (editDow == pl.filebit.dietetyk.ui.PlanData.todayDow() && newName != oldName) {
+            val dayKey = java.time.LocalDate.now().let { "%04d%02d%02d".format(it.year, it.monthValue, it.dayOfMonth) }
+            app.settings.renameMealStatus(dayKey, oldName, newName)
+        }
+
+        val mk = newMealJson["kcal"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+        val mp = newMealJson["proteinG"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+        val mc = newMealJson["carbsG"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+        val mf = newMealJson["fatG"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+        val daySum = newDayMeals.sumOf { it["kcal"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0 }
+        val sameDaily = profile.varietyMode == pl.filebit.dietetyk.core.model.VarietyMode.SAME_DAILY
+        val scope = if (replicated) "we wszystkie dni tygodnia (jesz codziennie podobnie)"
+            else "na ${pl.filebit.dietetyk.ui.DOW_LONG[editDow - 1]}" + if (weeklyMode && sameDaily) " (tylko ten dzień — reszta tygodnia bez zmian)" else ""
+        val driftNote = if (daySum !in (keepTarget - 150)..(keepTarget + 150)) " Uwaga: dzień ma teraz $daySum kcal (cel $keepTarget) — jeśli różnica za duża, dopasuj inny posiłek." else ""
+        return ToolResult("Podmieniłem posiłek ${targetIndex + 1} ('$oldName' -> '$newName') $scope: $mk kcal, B ${mp}g / W ${mc}g / T ${mf}g. Suma dnia: $daySum kcal (cel $keepTarget).$driftNote")
+    }
+
+    /** Buduje JSON posiłku z przeliczeniem kcal/makro z bazy produktów (współdzielone przez edycję i zapis planu). */
+    private fun computeMealJson(name: String, timeHint: String, prepMinutes: Int, ingredients: JsonArray, byName: Map<String, FoodProductModel>, catByName: Map<String, String>): JsonObject {
+        val ings = ingredients.mapNotNull { it as? JsonObject }.map { io ->
+            (io.string("productName") ?: io.string("name") ?: "") to (io.int("grams") ?: 0)
+        }
+        var k = 0.0; var pr = 0.0; var c = 0.0; var f = 0.0
+        ings.forEach { (pn, grams) ->
+            resolve(pn, byName)?.let { p ->
+                val fac = grams / 100.0
+                k += p.kcalPer100g * fac; pr += p.proteinPer100g * fac; c += p.carbsPer100g * fac; f += p.fatPer100g * fac
+            }
+        }
+        return buildJsonObject {
+            put("name", name); put("timeHint", timeHint); put("prepMinutes", prepMinutes)
+            put("kcal", k.toInt()); put("proteinG", pr.toInt()); put("carbsG", c.toInt()); put("fatG", f.toInt())
+            put("ingredients", ings.joinToString(", ") { "${it.first} ${it.second}g" })
+            put("ings", buildJsonArray {
+                ings.forEach { (pn, grams) ->
+                    val cat = catByName[pn.trim().lowercase()]
+                        ?: catByName.entries.firstOrNull { (kk, _) -> kk.contains(pn.trim().lowercase()) }?.value ?: "Inne"
+                    add(buildJsonObject { put("name", pn); put("grams", grams); put("cat", cat) })
+                }
+            })
+        }
     }
 
     /** Dopasowanie nazwy do produktu bazy: exact → substring (spójne z PlanValidator). */

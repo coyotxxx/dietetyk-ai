@@ -93,8 +93,13 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
     val waterTarget = 2500
     var reloadKey by remember { mutableIntStateOf(0) }
     val eaten = remember(reloadKey) { app.settings.eatenMeals(dayKey) }
+    // REAKTYWNIE: plan z Room — edycja posiłku przez AI (update_plan_meal/save_diet_plan) odświeża „Dziś"
+    // bez restartu. reloadKey zostaje dla stanu z settings (zjedzone posiłki — to nie Room).
+    val planEntity by androidx.compose.runtime.produceState<pl.filebit.dietetyk.data.db.PlanEntity?>(initialValue = null) {
+        app.database.planDao().observe().collect { value = it }
+    }
 
-    LaunchedEffect(reloadKey) {
+    LaunchedEffect(reloadKey, planEntity) {
         val p = app.profileRepo.get()
         hasProfile = p != null
         val w = app.weightRepo.latest()?.weightKg
@@ -105,7 +110,7 @@ fun TodayScreen(app: DietetykApp, onBell: () -> Unit = {}, onGoToChat: () -> Uni
         consumedP = logs.sumOf { it.proteinG }
         consumedC = logs.sumOf { it.carbsG }
         consumedF = logs.sumOf { it.fatG }
-        app.database.planDao().get()?.let { plan ->
+        planEntity?.let { plan ->
             meals = runCatching {
                 (PlanData.mealsForDay(plan.planJson, PlanData.todayDow()) ?: kotlinx.serialization.json.JsonArray(emptyList())).map { e ->
                     val o = e.jsonObject

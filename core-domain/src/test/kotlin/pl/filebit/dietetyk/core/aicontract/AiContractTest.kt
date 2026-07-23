@@ -88,4 +88,23 @@ class AiContractTest {
         assertTrue("calculate_targets zwraca liczby", AiToolCatalog.byName("calculate_targets")!!.emitsNumbers)
         assertTrue("get_history czyta dane", AiToolCatalog.byName("get_history")!!.readsData)
     }
+
+    @Test
+    fun `update_plan_meal pozwala edytowac pojedynczy posilek`() {
+        val tool = AiToolCatalog.byName("update_plan_meal")
+        assertNotNull("brak update_plan_meal", tool)
+        val names = tool!!.params.map { it.name }
+        assertTrue("identyfikacja po indeksie", "mealIndex" in names)
+        assertTrue("identyfikacja po nazwie", "mealName" in names)
+        assertTrue("nowe składniki", "ingredients" in names)
+        assertTrue("zakres dnia", "dayOfWeek" in names)
+        assertTrue("mutuje plan", tool.mutating)
+    }
+
+    @Test
+    fun `system prompt uczy edycji jednego posilku zamiast calego dnia`() {
+        val sp = DietitianPrompt.systemPrompt()
+        assertTrue("wskazuje update_plan_meal", sp.contains("update_plan_meal"))
+        assertTrue("zakazuje mowic ze nie moze edytowac", sp.contains("nie możesz edytować jednego posiłku"))
+    }
 }
