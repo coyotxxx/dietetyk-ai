@@ -78,14 +78,20 @@ class DietToolHandler(
         val profile = app.profileRepo.get() ?: return ToolResult("Brak profilu — najpierw zrób wywiad (save_profile).", isError = true)
         val weight = app.weightRepo.latest()?.weightKg
         val g = GoalPipeline.compute(profile, latestMeasuredWeightKg = weight)
-        return ToolResult("Cel: ${g.kcal} kcal (białko ${g.proteinG} g, węgle ${g.carbsG} g, tłuszcz ${g.fatG} g). ${g.breakdown.deficitLabel}. ${g.breakdown.tdeeFormulaText}.")
+        // BRAMKA WAGI: gdy cel policzony na założonej wadze — KRZYCZ do AI (nie blokuj, ale nie udawaj że pewne).
+        val warn = if (g.breakdown.weightSource == pl.filebit.dietetyk.core.calc.WeightSource.ASSUMED)
+            "⚠️ UWAGA: liczby policzone na ZAŁOŻONEJ wadze ${GoalPipeline.ASSUMED_WEIGHT_KG.toInt()} kg — user NIE podał realnej wagi. To PRZYBLIŻENIE, może być mocno nietrafione. Zdobądź realną wagę (może być z głowy) i zapisz przez log_measurement, potem przelicz. " else ""
+        return ToolResult("${warn}Cel: ${g.kcal} kcal (białko ${g.proteinG} g, węgle ${g.carbsG} g, tłuszcz ${g.fatG} g). ${g.breakdown.deficitLabel}. ${g.breakdown.tdeeFormulaText}.")
     }
 
     private suspend fun logMeasurement(input: JsonObject, now: Long): ToolResult {
         val weight = input.double("weightKg") ?: input.double("waga")
             ?: return ToolResult("Podaj wagę (weightKg).", isError = true)
+        // Czy to PIERWSZA realna waga (dotąd cel stał na placeholderze)? Wtedy warto przeliczyć cel/plan.
+        val wasAssumed = app.weightRepo.latest()?.weightKg == null && app.profileRepo.get()?.weightKg == null
         app.weightRepo.add(WeightSample(dateMs = now, weightKg = weight), now)
-        return ToolResult("Zapisałem wagę: $weight kg.")
+        val recalc = if (wasAssumed) " To Twoja pierwsza waga — dotąd cel liczyłem na wartości założonej. Przelicz cel (calculate_targets) i sprawdź, czy plan nadal pasuje; przy istotnej różnicy zaproponuj korektę." else ""
+        return ToolResult("Zapisałem wagę: $weight kg.$recalc")
     }
 
     /** Lokalny zakres dnia [północ, północ+1) dla momentu — do idempotencji i sprzątania per dzień. */
@@ -198,7 +204,10 @@ class DietToolHandler(
         app.profileRepo.save(profile, now)
         // Pierwsza realna kopia zapasowa od razu po utworzeniu profilu (auto-worker startuje dopiero za dobę).
         runCatching { pl.filebit.dietetyk.Backup.writeLocalBackup(app, app) }
-        return ToolResult("Zapisałem profil.")
+        // BRAMKA WAGI: profil bez wagi → dyrektywa NEXT-ACTION (nie blokujemy zapisu, ale nie licz nic bez wagi).
+        val noWeight = profile.weightKg == null && app.weightRepo.latest()?.weightKg == null
+        val next = if (noWeight) " UWAGA: profil BEZ wagi — zanim policzysz cel/plan, zapytaj o aktualną wagę (może być przybliżona) i zapisz. Bez wagi cel to zgadywanie." else ""
+        return ToolResult("Zapisałem profil.$next")
     }
 
     /**
@@ -348,6 +357,12 @@ class DietToolHandler(
         val profile = app.profileRepo.get()
             ?: return ToolResult("Brak profilu/celu — najpierw calculate_targets.", isError = true)
         val goal = GoalPipeline.compute(profile, latestMeasuredWeightKg = app.weightRepo.latest()?.weightKg)
+        // BRAMKA WAGI (C-lite): PIERWSZEGO planu nie budujemy na założonej wadze — cały cel byłby zgadywany.
+        // Przepustka: wystarczy JAKAKOLWIEK waga (nawet „z głowy") — trafia do profilu i bramka przepuszcza.
+        // Kto już ma plan (edycje/kolejne dni) NIE jest blokowany — tam wystarczy flaga w kontekście.
+        if (app.database.planDao().get() == null && goal.breakdown.weightSource == pl.filebit.dietetyk.core.calc.WeightSource.ASSUMED) {
+            return ToolResult("NIE ZAPISANO — nie mam wagi użytkownika, a pierwszy plan na założonych ${GoalPipeline.ASSUMED_WEIGHT_KG.toInt()} kg byłby zgadywaniem. Zapytaj o aktualną wagę (może być przybliżona, z głowy) i zapisz przez log_measurement (albo save_profile weightKg), POTEM ułóż plan. Nie ponawiaj save_diet_plan bez wagi.", isError = true)
+        }
 
         // Parsuj posiłki ze strukturalnymi składnikami
         data class ParsedMeal(val name: String, val time: String, val recipe: AiMealRecipe)

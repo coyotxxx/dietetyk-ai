@@ -132,8 +132,9 @@ class DietitianContextBuilder(
                 "Dziś ${todayRows.size} wpisów przy ${expectedMeals} zaplanowanych posiłkach — możliwe duplikaty. Zbadaj get_day_log przed interpretacją."
             else -> null
         }
-        // FLAGA PLACEHOLDERA WAGI: brak realnego pomiaru ORAZ brak wagi w profilu → cel stoi na założonej wadze.
-        val weightIsPlaceholder = weights.maxByOrNull { it.dateMs }?.weightKg == null && profile.weightKg == null
+        // FLAGA PLACEHOLDERA WAGI — JEDNO ŹRÓDŁO PRAWDY: bierzemy z celu (GoalPipeline oznaczył WeightSource),
+        // zamiast liczyć drugi raz (dawniej rozjazd groził dwoma werdyktami o tym samym fakcie).
+        val weightIsPlaceholder = goal.breakdown.weightSource == pl.filebit.dietetyk.core.calc.WeightSource.ASSUMED
         // Pamięć miękka: tylko ŚWIEŻE notatki (≤21 dni) z wiekiem — stary kontekst wygasa,
         // żeby AI nie nawiązywało do stresu sprzed miesiąca („recency-aware", nie inwigilacja).
         val memoryNotes = runCatching {

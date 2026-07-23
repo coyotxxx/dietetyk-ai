@@ -96,4 +96,20 @@ class GoalPipelineTest {
         val fromMacros = g.proteinG * 4 + g.carbsG * 4 + g.fatG * 9
         assertEquals("suma makro ≈ kcal", g.kcal.toDouble(), fromMacros.toDouble(), 30.0)
     }
+
+    // === BRAMKA WAGI: źródło wagi nie jest ciche ===
+    @Test
+    fun `brak wagi = ASSUMED + placeholder + ostrzezenie`() {
+        val noWeight = profile().copy(weightKg = null)
+        val g = GoalPipeline.compute(noWeight, latestMeasuredWeightKg = null)
+        assertEquals("źródło = ASSUMED", WeightSource.ASSUMED, g.breakdown.weightSource)
+        assertEquals("użyto placeholdera", GoalPipeline.ASSUMED_WEIGHT_KG, g.breakdown.weightKg, 0.01)
+        assertTrue("ostrzeżenie o założonej wadze", g.safetyWarnings.any { it.contains("ZAŁOŻONEJ wadze") })
+    }
+
+    @Test
+    fun `waga z profilu = DECLARED, pomiar = MEASURED`() {
+        assertEquals(WeightSource.DECLARED, GoalPipeline.compute(profile().copy(weightKg = 68.0), latestMeasuredWeightKg = null).breakdown.weightSource)
+        assertEquals(WeightSource.MEASURED, GoalPipeline.compute(profile().copy(weightKg = null), latestMeasuredWeightKg = 68.0).breakdown.weightSource)
+    }
 }

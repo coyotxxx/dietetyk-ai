@@ -24,6 +24,13 @@ data class DailyMacroGoal(
     val wasCapped: Boolean = false
 )
 
+/** Skąd wzięła się waga użyta do obliczeń — bramka wagi (nie licz po cichu na placeholderze). */
+enum class WeightSource {
+    MEASURED,   // realny pomiar (log_measurement)
+    DECLARED,   // podana w profilu/wywiadzie (może „z głowy")
+    ASSUMED     // BRAK wagi → placeholder ASSUMED_WEIGHT_KG. Cel TYMCZASOWY, wymaga realnej wagi.
+}
+
 /** Pełen breakdown obliczeń — żeby user (i AI) wiedzieli SKĄD biorą się liczby. */
 data class GoalBreakdown(
     val weightKg: Double,
@@ -35,7 +42,9 @@ data class GoalBreakdown(
     val isManualOverride: Boolean,
     val proteinPerKg: Double,
     val fatPerKg: Double,
-    val carbsCalculation: String
+    val carbsCalculation: String,
+    /** Źródło wagi. ASSUMED = policzone na placeholderze — cel niepewny, zdobądź realną wagę. */
+    val weightSource: WeightSource = WeightSource.DECLARED
 )
 
 /**
@@ -53,6 +62,9 @@ data class GoalBreakdown(
  */
 object GoalPipeline {
 
+    /** Placeholder wagi, gdy user nie podał żadnej — cel liczony na tym jest TYMCZASOWY (WeightSource.ASSUMED). */
+    const val ASSUMED_WEIGHT_KG = 75.0
+
     fun compute(
         profile: NutritionProfile,
         clinical: ClinicalContext = ClinicalContext.NONE,
@@ -65,7 +77,13 @@ object GoalPipeline {
         /** Carb cycling: true=dzień treningowy (mniej tłuszczu→więcej węgli), false=wolny, null=płasko. */
         isTrainingDay: Boolean? = null
     ): DailyMacroGoal {
-        val weight = latestMeasuredWeightKg ?: profile.weightKg ?: 75.0
+        // BRAMKA WAGI: nie licz po cichu na placeholderze — zapamiętaj ŹRÓDŁO wagi.
+        val weightSource = when {
+            latestMeasuredWeightKg != null -> WeightSource.MEASURED
+            profile.weightKg != null -> WeightSource.DECLARED
+            else -> WeightSource.ASSUMED
+        }
+        val weight = latestMeasuredWeightKg ?: profile.weightKg ?: ASSUMED_WEIGHT_KG
 
         // === KROK 1: TDEE = BMR (Mifflin-St Jeor) × mnożnik aktywności (+ ewentualna aktywność) ===
         val maleConst = if (profile.gender == Gender.MALE) 5.0 else -161.0
@@ -132,6 +150,11 @@ object GoalPipeline {
         // === SAFETYGUARD: hard-limity ===
         val warnings = mutableListOf<String>()
         var wasCapped = false
+
+        // BRAMKA WAGI: cel na założonej wadze → ostrzeżenie (UI + AI). Nie blokuje liczenia, ale nie jest ciche.
+        if (weightSource == WeightSource.ASSUMED) {
+            warnings += "Cel policzony na ZAŁOŻONEJ wadze ${ASSUMED_WEIGHT_KG.toInt()} kg (brak realnej wagi) — podaj wagę, żeby był trafny."
+        }
 
         if (deficitCapped) {
             wasCapped = true
@@ -212,7 +235,8 @@ object GoalPipeline {
                 isManualOverride = manualKcalOverride != null,
                 proteinPerKg = proteinPerKg,
                 fatPerKg = if (isEndurance && weight > 0) finalFatG / weight else fatPerKg,
-                carbsCalculation = carbsCalc
+                carbsCalculation = carbsCalc,
+                weightSource = weightSource
             )
         )
     }
