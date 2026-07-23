@@ -54,7 +54,11 @@ class DietitianContextBuilder(
 
         // Plan na dziś — żeby AI WIDZIAŁO co znaczy „zjadłem wszystko" i mogło to zalogować bez zgadywania.
         val planEntity = runCatching { planDao.get() }.getOrNull()
-        val plannedToday = planEntity?.let { parseTodayPlanned(it.planJson, nowMs) } ?: emptyList()
+        val plannedToday = planEntity?.let { parsePlannedForDow(it.planJson, dowOf(nowMs)) } ?: emptyList()
+        // PLAN CAŁEGO TYGODNIA — wszystkie dni z niepustym planem (AI ma widzieć każdy dzień, nie zgadywać).
+        val weeklyPlan = planEntity?.let { pe ->
+            (1..7).mapNotNull { d -> parsePlannedForDow(pe.planJson, d).takeIf { it.isNotEmpty() }?.let { pl.filebit.dietetyk.core.aicontract.DayPlanBrief(d, it) } }
+        } ?: emptyList()
         // Ile posiłków dziennie „powinno być" — do oznaczenia dnia jako KOMPLETNY (warunek dla TDEE/adherencji/red-flag).
         val plannedPerDay = profile.mealsPerDay?.takeIf { it > 0 }
             ?: plannedToday.size.takeIf { it > 0 } ?: 3
@@ -166,6 +170,7 @@ class DietitianContextBuilder(
             avoidedProducts = avoided,
             hasActivePlan = hasPlan,
             plannedMealsToday = plannedToday,
+            weeklyPlan = weeklyPlan,
             weightIsPlaceholder = weightIsPlaceholder,
             todayDataWarning = todayDataWarning,
             todayDow = dowOf(nowMs)
@@ -173,18 +178,17 @@ class DietitianContextBuilder(
     }
 
     /**
-     * Wyciąga posiłki ZAPLANOWANE na dziś z planu (JSON). Format zapisu: {"days":{"<dow>":{"meals":[...]}}}
-     * (stary format {"meals":[...]} = tylko dzisiejszy dzień). Każdy posiłek ma policzone kcal/makro z bazy.
-     * Parser w :data (nie zależymy od :app/PlanData) — zależność szłaby w złą stronę.
+     * Wyciąga posiłki ZAPLANOWANE na dany dzień tygodnia (1-7) z planu (JSON). Format zapisu:
+     * {"days":{"<dow>":{"meals":[...]}}} (stary {"meals":[...]} = tylko dzisiejszy dzień). Każdy posiłek ma
+     * policzone kcal/makro z bazy. Parser w :data (nie zależymy od :app/PlanData).
      */
-    private fun parseTodayPlanned(planJson: String, nowMs: Long): List<PlannedMeal> {
+    private fun parsePlannedForDow(planJson: String, dow: Int): List<PlannedMeal> {
         val root = runCatching { kotlinx.serialization.json.Json.parseToJsonElement(planJson).jsonObject }.getOrNull()
             ?: return emptyList()
-        val dow = dowOf(nowMs)
         val mealsArr: JsonArray? = run {
             val days = root["days"]?.jsonObject
             if (days != null) days[dow.toString()]?.jsonObject?.get("meals") as? JsonArray
-            else root["meals"] as? JsonArray  // stary format = dzisiejszy dzień
+            else if (dow == dowOf(System.currentTimeMillis())) root["meals"] as? JsonArray else null  // stary format = dziś
         }
         return mealsArr?.mapNotNull { it as? JsonObject }?.map { m ->
             PlannedMeal(

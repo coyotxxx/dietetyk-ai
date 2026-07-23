@@ -60,6 +60,8 @@ class DietToolHandler(
             "run_checkin" -> runCheckin(now)
             "save_diet_plan" -> saveDietPlan(input, now)
             "update_plan_meal" -> updatePlanMeal(input, now)
+            "get_plan_day" -> getPlanDay(input, now)
+            "delete_memory" -> deleteMemory(input)
             "search_products" -> searchProducts(input)
             "add_missing_product" -> addMissingProduct(input)
             "set_food_preference" -> setFoodPreference(input)
@@ -576,7 +578,34 @@ class DietToolHandler(
         val scope = if (replicated) "we wszystkie dni tygodnia (jesz codziennie podobnie)"
             else "na ${pl.filebit.dietetyk.ui.DOW_LONG[editDow - 1]}" + if (weeklyMode && sameDaily) " (tylko ten dzień — reszta tygodnia bez zmian)" else ""
         val driftNote = if (daySum !in (keepTarget - 150)..(keepTarget + 150)) " Uwaga: dzień ma teraz $daySum kcal (cel $keepTarget) — jeśli różnica za duża, dopasuj inny posiłek." else ""
-        return ToolResult("Podmieniłem posiłek ${targetIndex + 1} ('$oldName' -> '$newName') $scope: $mk kcal, B ${mp}g / W ${mc}g / T ${mf}g. Suma dnia: $daySum kcal (cel $keepTarget).$driftNote")
+        // ECHO całego zaktualizowanego dnia — żeby AI miała świeży stan planu w transkrypcie (kontekst jest z początku rozmowy).
+        val dayEcho = newDayMeals.mapIndexed { i, m ->
+            "${i + 1}. ${m.string("name") ?: "?"} (${m["kcal"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0} kcal)"
+        }.joinToString("; ")
+        return ToolResult("Podmieniłem posiłek ${targetIndex + 1} ('$oldName' -> '$newName') $scope: $mk kcal, B ${mp}g / W ${mc}g / T ${mf}g. Suma dnia: $daySum kcal (cel $keepTarget).$driftNote Aktualny dzień po zmianie: $dayEcho.")
+    }
+
+    /** Szczegóły planu na dany dzień — posiłki ze składnikami (do edycji zachowującej resztę składników). */
+    private suspend fun getPlanDay(input: JsonObject, now: Long): ToolResult {
+        val planJson = app.database.planDao().get()?.planJson
+            ?: return ToolResult("Brak zapisanego planu.", isError = true)
+        val dow = input.int("dayOfWeek")?.coerceIn(1, 7) ?: pl.filebit.dietetyk.ui.PlanData.todayDow()
+        val meals = pl.filebit.dietetyk.ui.PlanData.mealsForDay(planJson, dow)?.mapNotNull { it as? JsonObject } ?: emptyList()
+        if (meals.isEmpty()) return ToolResult("Na ${pl.filebit.dietetyk.ui.DOW_LONG[dow - 1]} nie ma zapisanego planu.")
+        val lines = meals.mapIndexed { i, m ->
+            val ings = m.string("ingredients") ?: ((m["ings"] as? JsonArray)?.mapNotNull { it as? JsonObject }
+                ?.joinToString(", ") { "${it.string("name")} ${it.int("grams") ?: 0}g" } ?: "")
+            "${i + 1}. ${m.string("name") ?: "?"} (${m.int("kcal") ?: 0} kcal) — $ings"
+        }.joinToString("\n")
+        return ToolResult("Plan na ${pl.filebit.dietetyk.ui.DOW_LONG[dow - 1]}:\n$lines")
+    }
+
+    /** Usuwa nieaktualne notatki z pamięci (po fragmencie) — sprzątanie zatrutych intencji. */
+    private suspend fun deleteMemory(input: JsonObject): ToolResult {
+        val frag = input.string("contains") ?: return ToolResult("Podaj fragment treści notatki (contains).", isError = true)
+        val n = app.database.aiMemoryDao().deleteContaining(frag)
+        return if (n > 0) ToolResult("Usunąłem $n notatkę/notatki zawierające '$frag'.")
+        else ToolResult("Nie znalazłem notatki z '$frag'.")
     }
 
     /** Buduje JSON posiłku z przeliczeniem kcal/makro z bazy produktów (współdzielone przez edycję i zapis planu). */

@@ -97,6 +97,21 @@ class DietitianContextAssemblerTest {
     }
 
     @Test
+    fun `render pokazuje plan calego tygodnia i grupuje identyczne dni`() {
+        val meals = listOf(
+            PlannedMeal("Owsianka", kcal = 448),
+            PlannedMeal("Mięso mielone z cukinią", kcal = 435)
+        )
+        // 7 dni identycznych (SAME_DAILY) → jedna linia zgrupowana
+        val week = (1..7).map { DayPlanBrief(it, meals) }
+        val out = DietitianPrompt.renderContext(baseCtx().copy(weeklyPlan = week))
+        assertTrue("sekcja planu tygodnia", out.contains("PLAN TYGODNIA"))
+        assertTrue("widać mięso (anty-halucynacja)", out.contains("Mięso mielone z cukinią"))
+        // 7 identycznych dni → jedna zgrupowana linia z wszystkimi skrótami dni
+        assertTrue("dni zgrupowane", out.contains("Pn,Wt,Śr,Cz,Pt,So,Nd"))
+    }
+
+    @Test
     fun `render podaje dzien tygodnia dla narzedzi planu`() {
         val out = DietitianPrompt.renderContext(baseCtx().copy(todayDow = 4))  // czwartek
         assertTrue("dziś = dayOfWeek 4", out.contains("dayOfWeek 4"))

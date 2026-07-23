@@ -86,6 +86,19 @@ object AiToolCatalog {
             mutating = true, emitsNumbers = true
         ),
         AiToolSpec(
+            "get_plan_day", "Pokaż SZCZEGÓŁY planu na dany dzień tygodnia — posiłki ze SKŁADNIKAMI i gramaturą. " +
+                "Nazwy posiłków każdego dnia masz już w kontekście (PLAN TYGODNIA); tego narzędzia użyj, gdy potrzebujesz " +
+                "składników (np. by podmienić posiłek zachowując resztę składników, albo sprawdzić czy jest w nim dany produkt).",
+            listOf(AiToolParam("dayOfWeek", "int", false, "dzień 1-7; pominięty = dziś")),
+            readsData = true, emitsNumbers = true
+        ),
+        AiToolSpec(
+            "delete_memory", "Usuń nieaktualną/wprowadzającą w błąd notatkę z pamięci (np. stara intencja zmiany planu, " +
+                "która już została wykonana albo jest sprzeczna z aktualnym planem). Podaj fragment treści notatki.",
+            listOf(AiToolParam("contains", "string", true, "fragment treści notatki do usunięcia")),
+            mutating = true
+        ),
+        AiToolSpec(
             "log_meal", "Zapisz zjedzony posiłek. Podaj kcal oraz makro (policz je z produktów przez search_products jeśli trzeba).",
             listOf(
                 AiToolParam("kcal", "int", true, "kalorie posiłku"),

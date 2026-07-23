@@ -44,6 +44,13 @@ data class PlannedMeal(
     val fatG: Int = 0
 )
 
+/** Zwięzły przegląd planu JEDNEGO dnia (nazwy+kcal posiłków) — do sekcji PLAN TYGODNIA w kontekście,
+ *  żeby AI widziała plan KAŻDEGO dnia (nie tylko dziś) i nie zgadywała/halucynowała o innych dniach. */
+data class DayPlanBrief(
+    val dow: Int,
+    val meals: List<PlannedMeal>
+)
+
 /**
  * KOMPLETNY kontekst, który AI-dietetyk widzi w KAŻDEJ rozmowie (dyrektywa Macieja 2026-07-05:
  * „AI ma dostęp do WSZYSTKICH danych"). Wszystkie liczby policzone deterministycznie przez
@@ -76,6 +83,9 @@ data class DietitianContext(
     val today: DaySnapshot = DaySnapshot(),
     /** Posiłki zaplanowane na dziś (z aktualnego planu). Puste = brak planu na dziś. */
     val plannedMealsToday: List<PlannedMeal> = emptyList(),
+    /** PLAN CAŁEGO TYGODNIA (wszystkie dni z zapisanym planem) — żeby AI widziała stan planu na KAŻDY dzień
+     *  i nie zgadywała, gdy user pyta o piątek/inny dzień. To ŹRÓDŁO PRAWDY o planie (nie notatki pamięci). */
+    val weeklyPlan: List<DayPlanBrief> = emptyList(),
     /** Dzień tygodnia DZIŚ (1=Pn…7=Nd) — żeby AI podawało poprawny `dayOfWeek` do narzędzi planu
      *  (update_plan_meal/save_diet_plan), gdy user mówi „tylko dziś/jutro". Bez tego AI zgadywało (myliło dni). */
     val todayDow: Int = 0,

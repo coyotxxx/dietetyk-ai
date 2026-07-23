@@ -87,4 +87,8 @@ interface AiMemoryDao {
 
     @Insert
     suspend fun insert(memory: AiMemoryEntity): Long
+
+    /** Usuń notatki zawierające fragment (do sprzątania nieaktualnych intencji, np. „jutro makaron"). Zwraca liczbę. */
+    @Query("DELETE FROM ai_memory WHERE note LIKE '%' || :frag || '%'")
+    suspend fun deleteContaining(frag: String): Int
 }

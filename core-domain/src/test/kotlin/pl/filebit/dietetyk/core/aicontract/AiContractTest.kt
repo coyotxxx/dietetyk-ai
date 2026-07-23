@@ -107,4 +107,19 @@ class AiContractTest {
         assertTrue("wskazuje update_plan_meal", sp.contains("update_plan_meal"))
         assertTrue("zakazuje mowic ze nie moze edytowac", sp.contains("nie możesz edytować jednego posiłku"))
     }
+
+    @Test
+    fun `narzedzia wgladu w plan i sprzatania pamieci istnieja`() {
+        assertNotNull("get_plan_day", AiToolCatalog.byName("get_plan_day"))
+        assertNotNull("delete_memory", AiToolCatalog.byName("delete_memory"))
+        assertTrue("get_plan_day czyta dane", AiToolCatalog.byName("get_plan_day")!!.readsData)
+        assertTrue("delete_memory mutuje", AiToolCatalog.byName("delete_memory")!!.mutating)
+    }
+
+    @Test
+    fun `system prompt wymaga uczciwosci o stanie planu (plan nad notatka)`() {
+        val sp = DietitianPrompt.systemPrompt()
+        assertTrue("uczciwość o planie", sp.contains("UCZCIWOŚĆ O STANIE PLANU"))
+        assertTrue("notatka nie jest wykonaniem", sp.contains("NOTATKA ≠ WYKONANIE"))
+    }
 }

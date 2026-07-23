@@ -77,6 +77,16 @@ object DietitianPrompt {
           Zakres jak w save_diet_plan: przy „codziennie podobnie" bez dayOfWeek zmiana wchodzi na wszystkie dni;
           gdy user mówi „tylko dziś/jutro" — podaj dayOfWeek tego dnia. Po zmianie POWIEDZ userowi ZAKRES
           (który dzień/dni) i nowe liczby z wyniku narzędzia — plan w aplikacji odświeży się sam.
+        - UCZCIWOŚĆ O STANIE PLANU (bezwzględnie): NIGDY nie twierdź, co jest w planie danego dnia, na podstawie
+          NOTATEK z pamięci ani domysłu. Stan planu masz w sekcji PLAN TYGODNIA — czytaj go. Gdy user prosi
+          „zmień X w piątek", NAJPIERW sprawdź w PLANIE TYGODNIA realny posiłek piątku; jeśli faktycznie zawiera to,
+          co ma zniknąć (np. mięso) — ZMIEŃ (update_plan_meal), a nie mów „już jest bez mięsa / nic nie trzeba".
+          Jeśli w danym dniu jest KILKA posiłków z tym składnikiem (np. mięso w posiłku 4 i 5) — zmień ten, o który
+          prosił, i DOPYTAJ o pozostałe („posiłek 5 to parówki z indyka — też wymienić?").
+        - NOTATKA ≠ WYKONANIE: gdy user prosi o zmianę planu, WYKONAJ ją od razu narzędziem (update_plan_meal),
+          nie zapisuj jej jako notatki „na później". Jeśli w pamięci wisi stara notatka-intencja o zmianie, którą
+          już da się wykonać albo która jest nieaktualna wobec planu — po wykonaniu/rozstrzygnięciu usuń ją
+          (delete_memory), żeby nie wprowadzała w błąd w kolejnych rozmowach.
 
         DZIEŃ PONAD CEL / ODSTĘPSTWO (bezwzględnie — to jest anty-dieta-kultura):
         - NAJPIERW INTEGRALNOŚĆ DANYCH: jeśli liczba wygląda nieprawdopodobnie (kontekst oznaczy „MOŻLIWY BŁĄD
@@ -104,6 +114,7 @@ object DietitianPrompt {
     """.trimIndent()
 
     private val DOW_PL = listOf("poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota", "niedziela")
+    private val DOW_SHORT_PL = listOf("Pn", "Wt", "Śr", "Cz", "Pt", "So", "Nd")
 
     /** Render pełnego kontekstu — WSZYSTKIE dane, które AI widzi w tej rozmowie. */
     fun renderContext(ctx: DietitianContext): String = buildString {
@@ -132,7 +143,8 @@ object DietitianPrompt {
         if (ctx.clinical.conditions.isNotEmpty())
             appendLine("Zdrowie: ${ctx.clinical.conditions.joinToString(", ")}.")
         if (ctx.memoryNotes.isNotEmpty()) {
-            appendLine("Pamiętasz o tej osobie:")
+            appendLine("NOTATKI Z ROZMÓW (intencje/preferencje/kontekst życiowy — to NIE jest aktualny plan; " +
+                "stan planu sprawdzaj WYŁĄCZNIE w sekcji PLAN TYGODNIA. Przy sprzeczności PLAN wygrywa):")
             ctx.memoryNotes.forEach { appendLine("  - $it") }
         }
         if (ctx.favoriteProducts.isNotEmpty()) {
@@ -198,6 +210,17 @@ object DietitianPrompt {
         // OSTRZEŻENIE O INTEGRALNOŚCI — kod flaguje, AI ma ZBADAĆ, nie zbagatelizować.
         ctx.todayDataWarning?.let {
             appendLine("⚠️ MOŻLIWY BŁĄD DANYCH DNIA: $it")
+        }
+        // PLAN TYGODNIA — stan REALNY planu na każdy dzień (grupujemy dni o identycznym zestawie posiłków).
+        // To odcina halucynacje typu „piątek jest bez mięsa" gdy w planie jest mięso.
+        if (ctx.weeklyPlan.isNotEmpty()) {
+            appendLine("PLAN TYGODNIA (STAN REALNY — gdy user pyta/prosi o zmianę w DOWOLNYM dniu, patrz TU, nie w notatkach):")
+            ctx.weeklyPlan.groupBy { day -> day.meals.map { it.name } }.forEach { (_, days) ->
+                val label = days.joinToString(",") { d -> DOW_SHORT_PL.getOrElse(d.dow - 1) { d.dow.toString() } }
+                val meals = days.first().meals
+                appendLine("  [$label] " + meals.mapIndexed { i, m -> "${i + 1}. ${m.name} (${m.kcal} kcal)" }.joinToString("; "))
+            }
+            appendLine("  → Zmiana posiłku w konkretnym dniu = update_plan_meal(dayOfWeek). Zanim powiesz 'już jest tak / nic nie trzeba' — SPRAWDŹ powyżej realny posiłek tego dnia.")
         }
         if (ctx.plannedMealsToday.isNotEmpty()) {
             appendLine("PLAN NA DZIŚ (to są zaplanowane posiłki — liczby policzone przez aplikację):")
