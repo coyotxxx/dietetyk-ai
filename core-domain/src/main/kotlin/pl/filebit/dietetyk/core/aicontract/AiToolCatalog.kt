@@ -109,6 +109,19 @@ object AiToolCatalog {
             readsData = true, emitsNumbers = true
         ),
         AiToolSpec(
+            "reset_day", "Wyczyść CAŁY log danego dnia (soft-delete, odwracalne) — gdy dzień ma duplikaty/błędne wpisy " +
+                "po edycjach planu lub problemach z siecią. Po reset_day zaloguj od nowa to, co user REALNIE zjadł " +
+                "(log_planned_day albo log_meal). Zawsze POTWIERDŹ z userem zanim wyczyścisz.",
+            listOf(AiToolParam("date", "string", false, "dzień YYYY-MM-DD; pominięty = dziś")),
+            mutating = true
+        ),
+        AiToolSpec(
+            "delete_meal_log", "Usuń pojedynczy błędny wpis spożycia po jego id (id bierzesz z get_day_log). " +
+                "Soft-delete, odwracalne. Używaj do punktowego usunięcia duplikatu; do wyczyszczenia całego dnia użyj reset_day.",
+            listOf(AiToolParam("id", "int", true, "id wpisu z get_day_log")),
+            mutating = true
+        ),
+        AiToolSpec(
             "search_products", "Znajdź produkt w bazie lokalnej + OpenFoodFacts (po nazwie lub kodzie kreskowym).",
             listOf(AiToolParam("query", "string", true, "nazwa lub kod"), AiToolParam("barcode", "string", false, "opcjonalny kod")),
             readsData = true, emitsNumbers = true

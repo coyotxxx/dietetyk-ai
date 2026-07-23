@@ -55,6 +55,8 @@ class DietToolHandler(
             "save_profile" -> saveProfile(input, now)
             "get_history" -> history(now)
             "get_day_log" -> dayLog(input, now)
+            "reset_day" -> resetDay(input, now)
+            "delete_meal_log" -> deleteMealLog(input, now)
             "run_checkin" -> runCheckin(now)
             "save_diet_plan" -> saveDietPlan(input, now)
             "search_products" -> searchProducts(input)
@@ -83,14 +85,29 @@ class DietToolHandler(
         return ToolResult("Zapisałem wagę: $weight kg.")
     }
 
+    /** Lokalny zakres dnia [północ, północ+1) dla momentu — do idempotencji i sprzątania per dzień. */
+    private fun dayRange(nowMs: Long): Pair<Long, Long> {
+        val zone = java.time.ZoneId.systemDefault()
+        val d = java.time.Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDate()
+        return d.atStartOfDay(zone).toInstant().toEpochMilli() to
+            d.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+    }
+
     private suspend fun logMeal(input: JsonObject, now: Long): ToolResult {
         val kcal = input.int("kcal") ?: return ToolResult("Podaj kcal posiłku.", isError = true)
+        val p = input.int("proteinG") ?: 0; val c = input.int("carbsG") ?: 0; val f = input.int("fatG") ?: 0
+        // GUARD ANTY-RETRY (przyczyna C duplikatów): identyczny wpis AD_HOC w ostatnich 5 min = pomiń.
+        // Chroni przed podwójnym zapisem, gdy round-trip do AI padł na sieci, a insert lokalny już przeszedł.
+        val dup = app.database.energyLogDao().countRecentAdHocDup(kcal, p, c, f, now - 5 * 60_000L)
+        if (dup > 0) {
+            val name = input.string("name")?.let { " ($it)" } ?: ""
+            return ToolResult("Ten posiłek$name ($kcal kcal) jest już zapisany sprzed chwili — nie dubluję.")
+        }
         app.database.energyLogDao().insert(
             EnergyLogEntity(
                 dateMs = now, kcalConsumed = kcal, isComplete = false,
-                proteinG = input.int("proteinG") ?: 0,
-                carbsG = input.int("carbsG") ?: 0,
-                fatG = input.int("fatG") ?: 0
+                proteinG = p, carbsG = c, fatG = f,
+                updatedAt = now, source = "AD_HOC", slot = null
             )
         )
         val name = input.string("name")?.let { " ($it)" } ?: ""
@@ -118,12 +135,26 @@ class DietToolHandler(
             return ToolResult("Nie znalazłem w dzisiejszym planie posiłku pasującego do „$only”. Zaplanowane na dziś: $names.", isError = true)
         }
 
+        // IDEMPOTENCJA (przyczyna A i C duplikatów): przed zapisem soft-delete istniejących wpisów PLANNED
+        // tego dnia (dla całego dnia albo tylko wybranego slotu). Dzięki temu ponowne „zjadłam wszystko"
+        // lub retry po awarii sieci = REPLACE, nie kolejny komplet duplikatów.
+        val (dayS, dayE) = dayRange(now)
+        if (only.isNullOrBlank()) {
+            app.database.energyLogDao().softDeletePlannedInDay(dayS, dayE, now, slot = null)
+        } else {
+            selected.forEach { m ->
+                app.database.energyLogDao().softDeletePlannedInDay(dayS, dayE, now, slot = m.string("name"))
+            }
+        }
         var k = 0; var pr = 0; var c = 0; var f = 0
         selected.forEach { m ->
             val kcal = m.int("kcal") ?: 0
             val p = m.int("proteinG") ?: 0; val cc = m.int("carbsG") ?: 0; val ff = m.int("fatG") ?: 0
             app.database.energyLogDao().insert(
-                EnergyLogEntity(dateMs = now, kcalConsumed = kcal, isComplete = false, proteinG = p, carbsG = cc, fatG = ff)
+                EnergyLogEntity(
+                    dateMs = now, kcalConsumed = kcal, isComplete = false, proteinG = p, carbsG = cc, fatG = ff,
+                    updatedAt = now, source = "PLANNED", slot = m.string("name")
+                )
             )
             k += kcal; pr += p; c += cc; f += ff
         }
@@ -188,6 +219,28 @@ class DietToolHandler(
         val flag = if (target > 0 && sum > target * 1.5 && rows.size > 1)
             "\n⚠️ Suma ${sum} kcal to ${sum * 100 / target}% celu ($target) przy ${rows.size} wpisach — sprawdź, czy to nie duplikaty po edycjach planu. Zapytaj usera, co realnie zjadł." else ""
         return ToolResult("Wpisy z $date (${rows.size}, razem $sum kcal):\n$lines$flag")
+    }
+
+    /** Sprzątanie skażonego dnia — soft-delete WSZYSTKICH aktywnych wpisów danego dnia (odwracalne).
+     *  Używane, gdy dzień ma duplikaty po edycjach/retry: reset_day → potem log_planned_day z czystego. */
+    private suspend fun resetDay(input: JsonObject, now: Long): ToolResult {
+        val zone = java.time.ZoneId.systemDefault()
+        val date = input.string("date")?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
+            ?: java.time.Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
+        val s = date.atStartOfDay(zone).toInstant().toEpochMilli()
+        val e = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val n = app.database.energyLogDao().softDeleteDay(s, e, now)
+        return if (n > 0)
+            ToolResult("Wyczyściłem log z $date — ukryłem $n wpisów (odwracalne). Teraz zaloguj od nowa to, co realnie zjadła: log_planned_day (albo log_meal dla pojedynczych).")
+        else ToolResult("Na $date nie było aktywnych wpisów do wyczyszczenia.")
+    }
+
+    /** Soft-delete pojedynczego wpisu po id (z get_day_log). Odwracalne. */
+    private suspend fun deleteMealLog(input: JsonObject, now: Long): ToolResult {
+        val id = input.int("id")?.toLong() ?: return ToolResult("Podaj id wpisu (z get_day_log).", isError = true)
+        val n = app.database.energyLogDao().softDeleteById(id, now)
+        return if (n > 0) ToolResult("Usunąłem wpis id=$id (odwracalne).")
+        else ToolResult("Nie znalazłem aktywnego wpisu id=$id.")
     }
 
     private suspend fun history(now: Long): ToolResult {

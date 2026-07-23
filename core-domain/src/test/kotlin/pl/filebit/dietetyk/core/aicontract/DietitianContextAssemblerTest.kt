@@ -111,4 +111,24 @@ class DietitianContextAssemblerTest {
         assertTrue("wskazuje get_day_log", sp.contains("get_day_log"))
     }
 
+    // === v1.21 — model slotów: precyzja logowania + narzędzia sprzątające ===
+    @Test
+    fun `systemPrompt uczy nie logowac z niejednoznacznego Tak i sprzatac duplikaty`() {
+        val sp = DietitianPrompt.systemPrompt()
+        assertTrue("Tak nie jest raportem zjedzenia", sp.contains("NIE jest raportem zjedzenia"))
+        assertTrue("edycja planu != logowanie", sp.contains("EDYCJA PLANU ≠ LOGOWANIE"))
+        assertTrue("ponowne log_planned_day bezpieczne (replace)", sp.contains("zastępuje"))
+        assertTrue("sprzątanie przez reset_day", sp.contains("reset_day"))
+    }
+
+    @Test
+    fun `katalog narzedzi ma sprzatanie i itemizacje`() {
+        val names = AiToolCatalog.all.map { it.name }
+        assertTrue("get_day_log", names.contains("get_day_log"))
+        assertTrue("reset_day", names.contains("reset_day"))
+        assertTrue("delete_meal_log", names.contains("delete_meal_log"))
+        assertTrue("reset_day mutuje", AiToolCatalog.byName("reset_day")!!.mutating)
+        assertTrue("delete_meal_log mutuje", AiToolCatalog.byName("delete_meal_log")!!.mutating)
+    }
+
 }
